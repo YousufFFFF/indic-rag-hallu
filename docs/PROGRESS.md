@@ -60,6 +60,20 @@ Dated log of what was done, what broke, and what's next. Newest first.
     - every configured language round-tripping its endonym and native digits;
     - the slide-17 answer with ZWNJ, `ज़` and `|` noise mapping back to the original.
   - 959 tests pass.
+- T07 merged (#11) with an open Codex finding: the diff-based IndicNLP alignment mis-attributed repeated words (`राम:रामः`). **Fixed in a follow-up PR:**
+  - `align()` is now a banded, globally optimal LCS-style alignment (substitution cost 2) that walks both strings in step.
+  - Tests check that word k of the output maps back inside word k of the input:
+    - real IndicNLP on repetitive noisy text: 90 cases, all 9 languages;
+    - 200 synthetic edit cases;
+    - the exact Codex case;
+    - pure substitutions stay exact.
+  - Out-of-suite stress:
+    - IndicNLP: 0 / 1,350 failures;
+    - harsh synthetic edits: 70 / 5,000 misses, all genuinely ambiguous (our alignment never matches fewer characters than the true edits).
+  - First attempt with substitution cost 1 failed 8 synthetic cases by tying with a shifted path; cost 2 fixed them.
+  - Second Codex finding (on #12): a fixed band missed cumulative drift (33 ZWNJs + 33 `ऩ` mapped output into the deleted ZWNJs). Fixed with provably optimal band doubling, related-character substitution cost 1, and per-substitution chunking. Regression tests: drift up to 200 chars; band doubling equals unbanded cost on 60 random cases.
+  - Third Codex finding (on #12): band doubling could allocate a dense grid of hundreds of MB on pathological drift. Fixed: two rolling cost rows plus 1-byte backpointers, and a 2M-cell work budget with a coarse-but-safe fallback (exact up to 300-char drift; at most 2.7 s and < 3 MB at 20k chars). Tests: a spy asserts no pass exceeds the budget; the forced fallback is safe; moderate drift stays exact.
+  - 1,321 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**

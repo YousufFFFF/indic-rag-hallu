@@ -212,3 +212,175 @@ def test_nfc_keeps_neighbours_of_changed_chars_exact():
     assert r.offsets.to_source(1, 2) == (1, 2)  # the space
     assert r.offsets.to_source(2, 4) == (2, 3)  # ज + nukta <- U+095B only
     assert r.offsets.to_source(4, 5) == (3, 4)  # "b"
+
+
+# --- provenance in repetitive text (Codex review on PR #11) ----------------------------
+
+
+def _word_spans(text: str, sep: str = " ") -> list[tuple[int, int]]:
+    spans, start = [], 0
+    for i, ch in enumerate(text + sep):
+        if ch == sep:
+            spans.append((start, i))
+            start = i + 1
+    return spans
+
+
+def _assert_wordwise_provenance(source: str, m, sep: str = " ") -> None:
+    """Output word k must map back inside source word k: no cross-occurrence mix-ups."""
+    src_words, out_words = _word_spans(source, sep), _word_spans(m.target, sep)
+    assert len(src_words) == len(out_words)
+    for (a, b), (s0, e0) in zip(out_words, src_words, strict=True):
+        if a == b:
+            continue  # word normalised away entirely
+        s, e = m.to_source(a, b)
+        assert s0 <= s and e <= e0, (m.target[a:b], source[s0:e0], source[s:e])
+
+
+def test_codex_case_repeated_word_keeps_its_own_occurrence():
+    r = indicnlp_normalize("राम:रामः", "hi")
+    assert r.text == "रामःरामः"
+    assert r.offsets.to_source(0, 4) == (0, 4)  # was (4, 8) with a longest-match diff
+    assert r.offsets.to_source(4, 8) == (4, 8)
+    assert r.offsets.to_source(3, 4) == (3, 4)  # the visarga <- the first ":"
+
+
+@pytest.mark.parametrize("code", list(LANGS))
+@pytest.mark.parametrize("seed", range(10))
+def test_indicnlp_repetitive_text_keeps_wordwise_provenance(code, seed):
+    """Real IndicNLP on text built from few repeated words with noise, in every language."""
+    lang, rng = LANGS[code], random.Random(seed)
+    vocab = [lang.native_name, lang.digits[:3], lang.native_name[:2], lang.native_name[1:]]
+    noise = ["", "", ":", "|", ZWNJ, ZWJ]
+    words = [rng.choice(noise) + rng.choice(vocab) + rng.choice(noise) for _ in range(40)]
+    source = " ".join(words)
+    r = indicnlp_normalize(source, code)
+    _assert_wordwise_provenance(source, r.offsets)
+
+
+@pytest.mark.parametrize("seed", range(200))
+def test_align_repetitive_text_keeps_wordwise_provenance(seed):
+    """Random local edits inside words of highly repetitive text."""
+    rng = random.Random(50_000 + seed)
+    vocab = ["राम", "रामः", "राम:", "कख", "ক\u09cb"]
+    source = "/".join(rng.choice(vocab) for _ in range(rng.randint(1, 30)))
+    b = OffsetMapBuilder(source)
+    for ch in source:
+        if ch == "/" or rng.random() < 0.8:
+            b.copy()
+        else:  # substitute, delete or expand this char
+            b.replace(1, rng.choice(["", "ः", "\u093c", "xy", "र"]))
+    target = b.build().target
+    _assert_wordwise_provenance(source, align(source, target), sep="/")
+
+
+def test_align_keeps_pure_substitutions_exact():
+    m = align("आयु २१ वर्ष", "आयु 21 वर्ष")
+    assert m.to_source(4, 5) == (4, 5) and m.to_source(5, 6) == (5, 6)
+
+
+def test_align_identity_and_extremes():
+    assert align("राम", "राम").lo == (0, 1, 2)
+    assert align("", "").target == ""
+    assert align("राम", "").to_target(0, 3) == (0, 0)
+    assert align("", "राम").to_source(0, 3) == (0, 0)
+
+
+# --- cumulative drift (Codex review on PR #12) -----------------------------------------
+
+
+@pytest.mark.parametrize(("deleted", "expanded"), [(33, 33), (100, 100), (200, 10), (5, 120)])
+def test_cumulative_drift_beyond_the_initial_band(deleted, expanded):
+    """ZWNJs deleted, then ऩ expanded to न + nukta: lengths can cancel out while the true
+    alignment drifts far from the diagonal. Each pair must map to its own ऩ."""
+    source = ZWNJ * deleted + "\u0929" * expanded
+    r = indicnlp_normalize(source, "hi")
+    assert r.text == "\u0928\u093c" * expanded
+    for k in range(expanded):
+        assert r.offsets.to_source(2 * k, 2 * k + 2) == (deleted + k, deleted + k + 1)
+    assert r.offsets.to_target(0, deleted) == (0, 0)  # the ZWNJ run was deleted
+
+
+def test_contraction_maps_to_both_parts():
+    m = align("\u0995\u09c7\u09be", "\u0995\u09cb")
+    assert m.to_source(1, 2) == (1, 3)
+
+
+def _ops_cost(a: str, b: str, ops: list[int]) -> int:
+    from indichallu.text import normalize as N
+
+    i = j = total = 0
+    for op in ops:
+        if op == N._EQ:
+            i, j = i + 1, j + 1
+        elif op == N._SUB:
+            total += N._sub_cost(a[i], b[j])
+            i, j = i + 1, j + 1
+        elif op == N._DEL:
+            total, i = total + N.INDEL_COST, i + 1
+        else:
+            total, j = total + N.INDEL_COST, j + 1
+    assert (i, j) == (len(a), len(b))
+    return total
+
+
+@pytest.mark.parametrize("seed", range(60))
+def test_band_doubling_reaches_the_global_optimum(seed):
+    """_edit_ops must cost exactly what an unbanded alignment costs, even with long
+    deletions followed by long insertions (drift far beyond ALIGN_BAND)."""
+    from indichallu.text import normalize as N
+
+    rng = random.Random(70_000 + seed)
+    pool = "रामकख\u0929\u0928\u093c२1 " + ZWNJ
+    core = "".join(rng.choice(pool) for _ in range(rng.randint(0, 60)))
+    a = ZWNJ * rng.randint(0, 80) + core
+    b = core.replace(ZWNJ, "") + "\u0928\u093c" * rng.randint(0, 80)
+    full_cost, _ = N._banded_ops(a, b, band=len(a) + len(b) + 1)
+    assert _ops_cost(a, b, N._edit_ops(a, b)) == full_cost
+
+
+# --- bounded work (Codex review on PR #12) ---------------------------------------------
+
+
+def _assert_safe_hull(r, deleted: int, expanded: int) -> None:
+    """Every न + nukta pair maps to a source span that CONTAINS its own ऩ."""
+    for k in range(expanded):
+        s, e = r.offsets.to_source(2 * k, 2 * k + 2)
+        assert s <= deleted + k and deleted + k + 1 <= e
+
+
+def test_over_budget_falls_back_to_a_safe_coarse_chunk(monkeypatch):
+    from indichallu.text import normalize as N
+
+    monkeypatch.setattr(N, "MAX_ALIGN_CELLS", 500)  # force the fallback cheaply
+    source = ZWNJ * 40 + "\u0929" * 40
+    r = indicnlp_normalize(source, "hi")
+    assert r.text == "\u0928\u093c" * 40
+    _assert_safe_hull(r, 40, 40)
+    assert N._edit_ops(source, r.text) is None
+
+
+def test_pathological_drift_is_bounded_in_work_and_stays_safe(monkeypatch):
+    """Thousands of deleted ZWNJs + as many expansions: every alignment pass stays within
+    the cell budget (memory is 1 byte per cell plus two cost rows), and spans stay safe."""
+    from indichallu.text import normalize as N
+
+    passes: list[int] = []
+    real = N._banded_ops
+
+    def spy(a, b, band):
+        passes.append((len(a) + 1) * (abs(len(b) - len(a)) + 2 * band + 1))
+        return real(a, b, band)
+
+    monkeypatch.setattr(N, "_banded_ops", spy)
+    k = 1500
+    r = indicnlp_normalize(ZWNJ * k + "\u0929" * k, "hi")
+    assert passes and max(passes) <= N.MAX_ALIGN_CELLS
+    _assert_safe_hull(r, k, k)
+
+
+def test_moderate_drift_is_still_exact_within_budget():
+    source = ZWNJ * 300 + "\u0929" * 300
+    r = indicnlp_normalize(source, "hi")
+    for k in range(300):
+        assert r.offsets.to_source(2 * k, 2 * k + 2) == (300 + k, 301 + k)

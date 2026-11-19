@@ -6,8 +6,8 @@ Pipeline (docs/DECISIONS.md D-012), each step returning an :class:`OffsetMap`:
    text in independent chunks split at NFC-safe boundaries.
 2. **IndicNLP** (:func:`indicnlp_normalize`): the language's IndicNLP normaliser
    (nukta forms decomposed, ZWJ/ZWNJ removed, ``|`` -> danda, ``:`` after a letter ->
-   visarga, ...), aligned to its input with a character diff because the library
-   returns no offsets.
+   visarga, ...), aligned to its input with a lockstep minimum-edit alignment
+   (:func:`align`) because the library returns no offsets.
 
 :func:`normalize` runs both and composes the maps, so a span found on the normalised
 text maps straight back to the original. Apply the same pipeline to everything that is
@@ -26,7 +26,6 @@ True
 from __future__ import annotations
 
 import unicodedata
-from difflib import SequenceMatcher
 from functools import lru_cache
 from typing import NamedTuple
 
@@ -112,19 +111,185 @@ def nfc(text: str) -> Normalized:
 # --- aligning a black-box transformation -----------------------------------------------
 
 
-def align(source: str, target: str) -> OffsetMap:
-    """Offset map from ``target`` back to ``source`` via a character-level diff.
+# Alignment costs (DECISIONS D-012). Insert/delete cost 1. Substituting a RELATED
+# character (same base letter after NFKD, e.g. ऩ -> न; same digit value, e.g. २ -> 2; or
+# whitespace -> whitespace) costs 1. Any other substitution costs 2, the same as a
+# deletion plus an insertion, so unrelated characters are only aligned when that keeps
+# more matches (LCS-style). This stops alignments from shifting by a char to swallow a
+# neighbouring separator (cost-1 subs tie with that), and lets e.g. "ऩ" -> "न" + nukta win
+# over pairing "न" with an unrelated deleted char.
+INDEL_COST = 1
+RELATED_SUB_COST = 1
+SUB_COST = 2
 
-    For transformations that don't report offsets (e.g. IndicNLP). Matching runs are
-    mapped exactly; each differing region is one replacement chunk.
+# Initial half-width of the band around the diagonal. It doubles until the banded optimum
+# is provably global (see _edit_ops), so cumulative drift is handled...
+ALIGN_BAND = 32
+# ...within a work budget: one alignment pass fills (rows x band width) cells. If the next
+# pass would exceed this, align() falls back to one coarse chunk for the differing region
+# (pathological input, e.g. thousands of deleted ZWNJs followed by as many expansions).
+# That is still safe, since every span maps to a region containing its true source, just
+# less precise. Time and memory stay bounded (DECISIONS D-012).
+MAX_ALIGN_CELLS = 2_000_000
+
+_EQ, _SUB, _DEL, _INS = 0, 1, 2, 3
+
+
+@lru_cache(maxsize=4096)
+def _base(ch: str) -> str:
+    return unicodedata.normalize("NFKD", ch)[:1] or ch
+
+
+def _sub_cost(x: str, y: str) -> int:
+    if _base(x) == _base(y):
+        return RELATED_SUB_COST
+    dx, dy = unicodedata.digit(x, None), unicodedata.digit(y, None)
+    if dx is not None and dx == dy:
+        return RELATED_SUB_COST
+    if x.isspace() and y.isspace():
+        return RELATED_SUB_COST
+    return SUB_COST
+
+
+def _banded_ops(a: str, b: str, band: int) -> tuple[int, list[int]]:
+    """Optimal alignment restricted to diagonals j - i within ``band`` of [0, m - n].
+
+    Returns (cost, ops). Ties prefer match/substitute, then delete, then insert, which
+    keeps 1:1 substitutions (e.g. digits) as substitutions. Memory: two rows of costs plus
+    one byte of backpointer per band cell.
+    """
+    n, m = len(a), len(b)
+    lo_d = min(0, m - n) - band  # allowed range of j - i
+    hi_d = max(0, m - n) + band
+    width = hi_d - lo_d + 1
+    inf = SUB_COST * (n + m) + 1
+    prev: list[int] = []
+    row = [inf] * width
+    back = [bytearray(width) for _ in range(n + 1)]
+    for i in range(n + 1):
+        if i:
+            prev, row = row, [inf] * width
+        # only cells with 0 <= j <= m
+        for k in range(max(0, -i - lo_d), min(width - 1, m - i - lo_d) + 1):
+            j = i + lo_d + k
+            if i == 0 and j == 0:
+                row[k] = 0
+                continue
+            best, op = inf, _EQ
+            if i and j:  # diagonal: same k in the previous row
+                same = a[i - 1] == b[j - 1]
+                c = prev[k] + (0 if same else _sub_cost(a[i - 1], b[j - 1]))
+                if c < best:
+                    best, op = c, (_EQ if same else _SUB)
+            if i and k + 1 < width:  # delete a[i-1]: from (i-1, j)
+                c = prev[k + 1] + INDEL_COST
+                if c < best:
+                    best, op = c, _DEL
+            if j and k:  # insert b[j-1]: from (i, j-1)
+                c = row[k - 1] + INDEL_COST
+                if c < best:
+                    best, op = c, _INS
+            row[k], back[i][k] = best, op
+    final_cost = row[m - n - lo_d]
+    ops: list[int] = []
+    i, j = n, m
+    while i or j:
+        op = back[i][j - i - lo_d]
+        ops.append(op)
+        if op in (_EQ, _SUB):
+            i, j = i - 1, j - 1
+        elif op == _DEL:
+            i -= 1
+        else:
+            j -= 1
+    ops.reverse()
+    return final_cost, ops
+
+
+def _edit_ops(a: str, b: str, max_cells: int | None = None) -> list[int] | None:
+    """Globally optimal alignment of ``a`` to ``b`` under the costs above, or None.
+
+    Runs the banded alignment and doubles the band until the result is provably optimal.
+    Every insert/delete costs 1 and only they change the diagonal ``d = j - i``, so a path
+    that leaves the band reaches some diagonal ``d`` with ``|d| > band + max(0, D)`` or
+    ``d < min(0, D) - band`` (``D = m - n``) and costs at least ``|d| + |D - d|`` >=
+    ``|D| + 2*band + 2``. If the banded optimum costs less than that, nothing outside the
+    band can beat it (Ukkonen's band-doubling argument). Returns None if a pass would
+    need more than ``max_cells`` cells (rows x band width; default ``MAX_ALIGN_CELLS``).
+    """
+    n, m = len(a), len(b)
+    max_cells = MAX_ALIGN_CELLS if max_cells is None else max_cells
+    band = ALIGN_BAND
+    while True:
+        if (n + 1) * (abs(m - n) + 2 * band + 1) > max_cells:
+            return None
+        cost, ops = _banded_ops(a, b, band)
+        covers_all = min(0, m - n) - band <= -n and max(0, m - n) + band >= m
+        if covers_all or cost < abs(m - n) + 2 * band + 2:
+            return ops
+        band *= 2
+
+
+def align(source: str, target: str) -> OffsetMap:
+    """Offset map from ``target`` back to ``source`` for a black-box transformation.
+
+    For transformations that don't report offsets (e.g. IndicNLP), which make small local
+    edits. Uses a globally optimal (LCS-style) alignment that walks both strings in step,
+    so repeated text keeps its provenance. A longest-common-substring diff can attribute an
+    output word to a later identical source word (DECISIONS D-012).
+
+    Chunks: unchanged text maps 1:1. Each substitution starts its own chunk, and inserts
+    or deletes that directly follow it join that chunk (an expansion like ऩ -> न + nukta,
+    or a contraction like ে + া -> ো). Inserts/deletes with no substitution before them
+    form a chunk of their own (e.g. deleted ZWNJs). If optimality would need a band wider
+    than ``MAX_ALIGN_CELLS`` allows, the differing middle becomes one chunk: coarse but safe.
+
+    >>> m = align("राम:रामः", "रामःरामः")   # only the first ":" became a visarga
+    >>> m.to_source(0, 4), m.to_source(4, 8)
+    ((0, 4), (4, 8))
     """
     builder = OffsetMapBuilder(source)
-    matcher = SequenceMatcher(None, source, target, autojunk=False)
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            builder.copy(i2 - i1)
-        else:  # replace / delete / insert
-            builder.replace(i2 - i1, target[j1:j2])
+    if source == target:
+        return OffsetMap.identity(source)
+    n, m = len(source), len(target)
+    p = 0  # common prefix and suffix are copied in lockstep
+    while p < min(n, m) and source[p] == target[p]:
+        p += 1
+    s = 0
+    while s < min(n, m) - p and source[n - 1 - s] == target[m - 1 - s]:
+        s += 1
+    builder.copy(p)
+
+    mid_target = target[p : m - s]
+    j = 0
+    chunk_src, chunk_tgt = 0, []  # the open chunk
+
+    def flush() -> None:
+        nonlocal chunk_src, chunk_tgt
+        if chunk_src or chunk_tgt:
+            builder.replace(chunk_src, "".join(chunk_tgt))
+        chunk_src, chunk_tgt = 0, []
+
+    ops = _edit_ops(source[p : n - s], mid_target)
+    if ops is None:  # pathological drift: one coarse but safe chunk for the middle
+        builder.replace(n - s - p, mid_target)
+        ops = []
+    for op in ops:
+        if op == _EQ:
+            flush()
+            builder.copy(1)
+            j += 1
+        elif op == _SUB:
+            flush()  # a substitution always starts a new chunk
+            chunk_src, chunk_tgt = 1, [mid_target[j]]
+            j += 1
+        elif op == _DEL:
+            chunk_src += 1
+        else:  # _INS
+            chunk_tgt.append(mid_target[j])
+            j += 1
+    flush()
+    builder.copy(s)
     offsets = builder.build()
     assert offsets.target == target
     return offsets
