@@ -18,9 +18,15 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - Loader and validation in `src/indichallu/languages.py`.
   - `tests/test_languages_config.py` checks the config against the deck and against Python's Unicode database: digits, scripts, blocks and endonyms. It also checks that malformed configs are rejected.
   - 49 tests pass in the container.
+- **T04: record schema.** `src/indichallu/data/schema.py` implements the CLAUDE.md §6 record as pydantic models (D-008).
+  - Enums: the 4 error types, the 3 verdicts, response label, source, split.
+  - Validation of offsets against the original answer and of the evidence contract.
+  - Atomic, UTF-8 JSONL read/write.
+  - `tests/test_schema.py` uses the slide-17 worked example as its fixture, with offsets computed from the strings, plus 21 rejection cases, each checked to fail for the intended reason.
+  - 81 tests pass in the container.
 
 **Next**
-- T04: `data/schema.py` (record schema, JSONL I/O, validation).
+- T05: run utilities (`results/runs/<run_id>/` with resolved config, git hash, model revisions, GPU name; seeding helper).
 
 ## 2026-11-19
 
@@ -39,5 +45,5 @@ Dated log of what was done, what broke, and what's next. Newest first.
 
 **Next**
 - T02: GitHub Actions CI (CPU pytest + ruff), branch protection on `main`.
-- T04: `data/schema.py` (record schema, JSONL I/O, validation).
+- T05: run utilities (`results/runs/<run_id>/` with resolved config, git hash, model revisions, GPU name; seeding helper).
 - T00: request IndicNER access; `ollama pull qwen3:4b`.

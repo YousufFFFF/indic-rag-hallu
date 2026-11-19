@@ -62,3 +62,18 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - Each language records its ISO 639-3 code, ISO 15924 script, Unicode block and digit-zero code point, family, IndicTrans2 tag, and IndicQA file. Every Unicode field is checked against Python's `unicodedata` in the tests, not taken on trust.
   - `resource_level` is left `null`. It will be filled in M1 from a verified, cited source (planned: the Joshi et al. 2020 taxonomy), never estimated.
 - **Consequences:** Turning a language on later is a one-line config change. Analysis code must handle `resource_level` being null until M1.
+
+## D-008 · Record schema conventions (2026-11-20)
+
+- **Context:** Every stage reads and writes the JSONL record from CLAUDE.md §6. The span metrics and the "points back at a retrieved passage" contract only hold if the schema enforces them.
+- **Decision** (`src/indichallu/data/schema.py`):
+  - **Offsets** are Python `str` indices (Unicode code points) into the **original, un-normalised** answer, half-open `[start, end)`. A claim's `text` must equal `answer[start:end]`. Paraphrased claims (e.g. from LLM decomposition in M1) will need a separate field, not a looser check.
+  - **Contract:** SUPPORTED and CONTRADICTED claims must name a `best_passage_id`. UNSUPPORTED claims may name one or none. Every passage ID mentioned anywhere must be in `retrieved`.
+  - **Retrieval carried forward:** `retrieved` is required, non-empty, with unique IDs and ranks exactly 1..n.
+  - **Score matrix:** `claims[].passage_scores` holds the claim's NLI scores against each retrieved passage (deck slide 17 step 02 / CLAUDE.md §3 row 8). This field is an addition to the §6 example.
+  - **Error types:** `claims[].type` (predicted) and `labels.spans[].type` (gold) use the four-type taxonomy. A SUPPORTED claim cannot carry an error type.
+  - **Response label** is `faithful` | `hallucinated`. It must agree with the spans (hallucinated ⇔ ≥1 span). Gold spans may not overlap.
+  - `natural` records must name their generator. `injected`/`translated` records may omit it.
+  - **Validation:** NLI probabilities must sum to 1 (±1e-3). Unknown fields are rejected everywhere, except backend-specific decoding extras.
+  - **JSONL:** UTF-8 without `\u` escapes, one compact line per record, atomic writes, line numbers in parse errors.
+- **Consequences:** Invalid records fail at write/read time instead of producing silently wrong metrics. Schema changes need a decision entry and a test update.
