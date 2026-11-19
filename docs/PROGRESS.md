@@ -16,7 +16,7 @@ Dated log of what was done, what broke, and what's next. Newest first.
 - README CI badge.
 
 **Next**
-- Branch protection on `main` (rest of T02), once the `test` check has run on GitHub.
+- T02 complete: branch protection enabled on `main` (DECISIONS D-006).
 - T03: `configs/languages.yaml`.
 
 ## 2026-11-19
