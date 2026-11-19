@@ -31,3 +31,13 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 - **Context:** The maintainer's rule is that everything must be free and open source, with no paid API budget.
 - **Decision:** No paid APIs. Prefer models and datasets under OSI-approved or open-data licences (Apache-2.0, MIT, CC-BY, CC0). LLM-as-judge (B3) and auto-labelling use open models run locally or on the free T4.
 - **Consequences:** Open-weight models under non-OSI licences (Llama 3.x incl. Nanda, Gemma 3) and datasets without clear licences need an explicit decision (PLAN.md Q12, Q14).
+
+## D-005 · Dependency pinning (2026-11-19)
+
+- **Context:** CLAUDE.md requires pinned dependencies and reproducible runs. The dev container installs the CPU build of PyTorch; Colab/Kaggle use the CUDA build.
+- **Decision:**
+  - Direct dependencies are pinned exactly (`==`) in `pyproject.toml`.
+  - The full transitive set is frozen in `requirements-lock.txt` by `scripts/lock_deps.sh`, which resolves inside the same digest-pinned base image as the `Dockerfile`.
+  - `torch==2.15.0` comes from the PyTorch CPU index in Docker. GPU notebooks install the same version's CUDA build.
+  - `numpy` is pinned to 2.4.6, because 2.5.x requires Python ≥ 3.12.
+- **Consequences:** Changing any pin means re-running the lock script and rebuilding the image. GPU-only packages (`bitsandbytes`, `accelerate`) will go into a separate optional extra when M1 needs them.

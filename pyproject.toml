@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools==84.2.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "indichallu"
+version = "0.0.1"
+description = "Claim-level hallucination detection for RAG in low-resource Indic languages"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "The indic-rag-hallu authors" }]
+requires-python = ">=3.11,<3.12"
+
+# Direct dependencies, pinned exactly. The full transitive set is frozen in
+# requirements-lock.txt (regenerate with scripts/lock_deps.sh).
+# torch is installed from the PyTorch CPU index inside Docker; on a GPU
+# notebook (Colab/Kaggle) the CUDA build of the same version is used.
+dependencies = [
+    "numpy==2.4.6",
+    "pyyaml==6.0.3",
+    "pydantic==2.14.4",
+    "torch==2.15.0",
+    "transformers==5.23.0",
+    "datasets==5.2.0",
+    "sentence-transformers==6.3.0",
+    "faiss-cpu==1.16.0",
+    "indic-nlp-library==0.92",
+    "scikit-learn==1.9.1",
+    "matplotlib==3.11.2",
+    "openai==3.55.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not slow and not gpu'"
+markers = [
+    "slow: downloads or runs real models; excluded by default (run with -m slow)",
+    "gpu: needs a CUDA GPU; excluded by default (run with -m gpu)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

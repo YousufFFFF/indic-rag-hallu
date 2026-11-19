@@ -1,0 +1,19 @@
+services:
+  dev:
+    build: .
+    image: indichallu-dev:latest
+    volumes:
+      - .:/workspace
+      - hf-cache:/cache/huggingface
+    environment:
+      # Ollama runs on the host (laptop GPU); reached via its OpenAI-compatible API.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Optional, git-ignored: put HF_TOKEN=... here. Never commit it.
+    env_file:
+      - path: .env
+        required: false
+
+volumes:
+  hf-cache:
