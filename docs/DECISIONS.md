@@ -1,0 +1,33 @@
+# Decisions
+
+Short ADR-style records of every non-obvious choice. Newest last. Each entry: context → decision → consequences.
+
+---
+
+## D-001 · Development environment: Docker (2026-11-19)
+
+- **Context:** The dev laptop has no Python install. Docker Desktop is available. CI runs on Linux.
+- **Decision:** All development and tests run in a Docker container built on `python:3.11-slim` with CPU PyTorch. No local Python install.
+- **Consequences:** Local and CI environments match. GPU work doesn't run in this container: generation goes through Ollama on the host, and heavy runs go on Colab/Kaggle.
+
+## D-002 · Compute: laptop + free cloud T4 (2026-11-19)
+
+- **Context:** The laptop GPU is an NVIDIA GeForce GTX 1650 Ti with 4 GB VRAM (`nvidia-smi`, driver 566.36). The Stage I deck (slide 20) commits to a GPU with at least 16 GB.
+- **Decision:** Use the laptop for development, the Ollama generator and the demo. Use a free Colab/Kaggle T4 (16 GB, maintainer's account) for embedding the corpus, large-scale NLI scoring, 7–10B generators and fine-tuning.
+- **Consequences:** Slide 20's [INSERT GPU MODEL] is filled from run metadata. Runs on the T4 must checkpoint to survive session limits.
+
+## D-003 · M0 generator: `qwen3:4b` via Ollama (2026-11-19)
+
+- **Context:** M0 needs one Hindi-capable generator that fits a 4 GB GPU and has an open-source licence. Candidates checked on HF and the Ollama registry on 2026-11-19:
+  - `qwen2.5vl:3b`: Qwen Research Licence (non-commercial), and a vision encoder we don't use.
+  - `qwen3:4b`: Apache-2.0, 2.50 GB, card states 100+ languages.
+  - `qwen2.5:1.5b`: Apache-2.0, 0.99 GB.
+  - `qwen2.5:7b` / `qwen2.5vl:7b`: Apache-2.0, but 4.68 / 5.97 GB, which doesn't fit in 4 GB.
+- **Decision:** `qwen3:4b` (HF source `Qwen/Qwen3-4B`, revision `1cfa9a720891`), served by Ollama and called through the OpenAI-compatible backend. Thinking mode is off. Decoding settings are fixed in `configs/generation/m0.yaml`. `qwen2.5:1.5b` is the fallback.
+- **Consequences:** Run metadata records the Ollama manifest digest as well as the HF revision. White-box baseline B4 (logit-based uncertainty) needs an HF Transformers model on the T4, not Ollama. Hindi output quality is still to be measured in T23 and T36.
+
+## D-004 · Free and open-source only (2026-11-19)
+
+- **Context:** The maintainer's rule is that everything must be free and open source, with no paid API budget.
+- **Decision:** No paid APIs. Prefer models and datasets under OSI-approved or open-data licences (Apache-2.0, MIT, CC-BY, CC0). LLM-as-judge (B3) and auto-labelling use open models run locally or on the free T4.
+- **Consequences:** Open-weight models under non-OSI licences (Llama 3.x incl. Nanda, Gemma 3) and datasets without clear licences need an explicit decision (PLAN.md Q12, Q14).
