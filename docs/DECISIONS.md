@@ -96,3 +96,24 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Seeding:** the config must contain `seed`, an int in [0, 2³²−1] (NumPy's limit). It is validated before the run folder is created. `set_seed` seeds Python, NumPy and PyTorch (CPU + CUDA). `deterministic=True` uses PyTorch's **strict** deterministic mode, which raises on a nondeterministic operation instead of warning. The mode is set explicitly, on or off, on every call, so the recorded `deterministic` flag always matches PyTorch's actual state. (From the Codex review on PR #9.)
   - **git in the image:** `git` is installed in the dev image, and `/workspace` is marked a git `safe.directory` (the bind-mounted repo has a different owner). Without this, provenance can't be recorded in Docker or CI.
 - **Consequences:** Every experiment script goes through `start_run`. Reported results must come from runs with `dirty: false`.
+
+## D-010 · Offset-map semantics (2026-11-20)
+
+- **Context:** CLAUDE.md §2 says spans are computed on original offsets, and every text transformation needs a map back to the original. Normalisation can expand (U+0958 → क + nukta), contract, delete (ZWNJ) and replace (Indic → ASCII digits).
+- **Decision** (`src/indichallu/text/offsets.py`):
+  - A transformation is recorded left to right as **copy** (exact 1:1) or **replace n source chars with any string**. Deletion and insertion are special cases of replace.
+  - Each target char stores the source interval it came from. Characters from one replacement share the **whole** chunk, because a chunk can't be split meaningfully.
+  - A span maps to the **hull** of its characters' intervals:
+    - spans inside copied text map exactly;
+    - touching part of a replaced chunk expands to the whole chunk;
+    - a fully deleted source span maps to the empty target span where it was;
+    - an inserted char at the exact edge of a source span is not attributed to it (only insertions strictly inside are).
+  - Maps compose (`m1.then(m2)`, `compose([...])`), so normalisation steps chain into one map back to the original.
+  - Lookups are linear scans, not bisection. Composed intervals need not be monotone: an insertion can land inside an earlier expansion. Texts are short, so this costs nothing that matters.
+- **Consequences:** Every text transform in `text/` returns `(output, OffsetMap)`. Spans found on normalised text are mapped with `to_source` before they are stored in a record.
+
+## D-011 · Doctests run in CI (2026-11-20)
+
+- **Context:** The first `OffsetMapBuilder` docstring example had an off-by-one offset. That is exactly the error class this project must avoid in documentation too.
+- **Decision:** pytest runs with `--doctest-modules` over `src/` as well as `tests/`, so every `>>>` example is executed in CI.
+- **Consequences:** Docstring examples must be correct and runnable. Illustrative snippets that shouldn't run use a `::` literal block instead of `>>>`.
