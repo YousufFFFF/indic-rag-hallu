@@ -41,3 +41,14 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - `torch==2.15.0` comes from the PyTorch CPU index in Docker. GPU notebooks install the same version's CUDA build.
   - `numpy` is pinned to 2.4.6, because 2.5.x requires Python ≥ 3.12.
 - **Consequences:** Changing any pin means re-running the lock script and rebuilding the image. GPU-only packages (`bitsandbytes`, `accelerate`) will go into a separate optional extra when M1 needs them.
+
+## D-006 · Branch protection on `main` (2026-11-20)
+
+- **Context:** CLAUDE.md §2 says never commit to `main` directly. CODEOWNERS only *requests* review. The maintainer is the only code owner, and GitHub doesn't let authors approve their own PRs.
+- **Decision:** `main` requires
+  - a pull request,
+  - a passing `test` CI check (branch doesn't have to be up to date),
+  - resolved review conversations.
+
+  Force-pushes and deleting `main` are blocked. Required approvals are **0** and code-owner review is **not** required, so the maintainer can merge their own PRs. Admins are not forced to follow these rules (`enforce_admins: false`), as an emergency escape hatch.
+- **Consequences:** Every change goes through a PR with green CI. If teammates start opening PRs, raise required approvals to 1 so the maintainer reviews them. History rewrites on `main`, like the one on 2026-11-19, now need protection lifted temporarily.
