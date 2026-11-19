@@ -32,10 +32,24 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - `git` added to the dev image (+ `safe.directory`).
   - 113 tests pass. Git tests use a throwaway repo, so they don't depend on this repo's state.
   - Codex review fixes: 32-bit seed bound checked before the folder exists; strict, explicitly reset deterministic mode.
+- T05 merged (#9), after fixing 2 Codex findings (seed range, strict deterministic mode).
+- **T06: offset maps.** `src/indichallu/text/offsets.py` (D-010).
+  - `OffsetMapBuilder` records copy / replace / delete / insert edits. `OffsetMap.to_source`/`to_target` map spans both ways. `then`/`compose` chain transforms.
+  - `tests/text/test_offsets.py` covers:
+    - Devanagari, Bengali, Tamil and Telugu digit replacement
+    - the slide-17 answer written with Devanagari digits (the claim span maps back to `२१`)
+    - expansion, contraction, deletion (ZWNJ), insertion
+    - an insertion inside an earlier expansion
+    - associativity
+    - 200 random edit sequences checked against ground truth
+    - 100 random compositions checked against a set-based reference
+  - First design (bisection over monotone intervals) was replaced: composition can produce non-monotone intervals. A regression test covers it.
+  - Doctests now run in CI (D-011). The first builder docstring example had an off-by-one; it is fixed and now executed.
+  - 431 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T06: `text/offsets.py` (composable offset maps, normalised ↔ original), then T07–T09 (normalisation, Indic digits, sentence segmentation).
+- T07: `text/normalize.py` (NFC + IndicNLP normaliser with offset maps), T08: `text/numerals.py` (Indic digits), T09: `text/sentseg.py` (sentence segmentation with offsets).
 
 ## 2026-11-19
 
