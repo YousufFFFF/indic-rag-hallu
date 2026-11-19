@@ -212,3 +212,75 @@ def test_nfc_keeps_neighbours_of_changed_chars_exact():
     assert r.offsets.to_source(1, 2) == (1, 2)  # the space
     assert r.offsets.to_source(2, 4) == (2, 3)  # ज + nukta <- U+095B only
     assert r.offsets.to_source(4, 5) == (3, 4)  # "b"
+
+
+# --- provenance in repetitive text (Codex review on PR #11) ----------------------------
+
+
+def _word_spans(text: str, sep: str = " ") -> list[tuple[int, int]]:
+    spans, start = [], 0
+    for i, ch in enumerate(text + sep):
+        if ch == sep:
+            spans.append((start, i))
+            start = i + 1
+    return spans
+
+
+def _assert_wordwise_provenance(source: str, m, sep: str = " ") -> None:
+    """Output word k must map back inside source word k: no cross-occurrence mix-ups."""
+    src_words, out_words = _word_spans(source, sep), _word_spans(m.target, sep)
+    assert len(src_words) == len(out_words)
+    for (a, b), (s0, e0) in zip(out_words, src_words, strict=True):
+        if a == b:
+            continue  # word normalised away entirely
+        s, e = m.to_source(a, b)
+        assert s0 <= s and e <= e0, (m.target[a:b], source[s0:e0], source[s:e])
+
+
+def test_codex_case_repeated_word_keeps_its_own_occurrence():
+    r = indicnlp_normalize("राम:रामः", "hi")
+    assert r.text == "रामःरामः"
+    assert r.offsets.to_source(0, 4) == (0, 4)  # was (4, 8) with a longest-match diff
+    assert r.offsets.to_source(4, 8) == (4, 8)
+    assert r.offsets.to_source(3, 4) == (3, 4)  # the visarga <- the first ":"
+
+
+@pytest.mark.parametrize("code", list(LANGS))
+@pytest.mark.parametrize("seed", range(10))
+def test_indicnlp_repetitive_text_keeps_wordwise_provenance(code, seed):
+    """Real IndicNLP on text built from few repeated words with noise, in every language."""
+    lang, rng = LANGS[code], random.Random(seed)
+    vocab = [lang.native_name, lang.digits[:3], lang.native_name[:2], lang.native_name[1:]]
+    noise = ["", "", ":", "|", ZWNJ, ZWJ]
+    words = [rng.choice(noise) + rng.choice(vocab) + rng.choice(noise) for _ in range(40)]
+    source = " ".join(words)
+    r = indicnlp_normalize(source, code)
+    _assert_wordwise_provenance(source, r.offsets)
+
+
+@pytest.mark.parametrize("seed", range(200))
+def test_align_repetitive_text_keeps_wordwise_provenance(seed):
+    """Random local edits inside words of highly repetitive text."""
+    rng = random.Random(50_000 + seed)
+    vocab = ["राम", "रामः", "राम:", "कख", "ক\u09cb"]
+    source = "/".join(rng.choice(vocab) for _ in range(rng.randint(1, 30)))
+    b = OffsetMapBuilder(source)
+    for ch in source:
+        if ch == "/" or rng.random() < 0.8:
+            b.copy()
+        else:  # substitute, delete or expand this char
+            b.replace(1, rng.choice(["", "ः", "\u093c", "xy", "र"]))
+    target = b.build().target
+    _assert_wordwise_provenance(source, align(source, target), sep="/")
+
+
+def test_align_keeps_pure_substitutions_exact():
+    m = align("आयु २१ वर्ष", "आयु 21 वर्ष")
+    assert m.to_source(4, 5) == (4, 5) and m.to_source(5, 6) == (5, 6)
+
+
+def test_align_identity_and_extremes():
+    assert align("राम", "राम").lo == (0, 1, 2)
+    assert align("", "").target == ""
+    assert align("राम", "").to_target(0, 3) == (0, 0)
+    assert align("", "राम").to_source(0, 3) == (0, 0)

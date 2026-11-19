@@ -134,6 +134,13 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
     - "Composing starters" (e.g. Bengali U+09BE, Tamil U+0BBE, Malayalam U+0D3E, Kannada U+0CD5, Hangul V/T) are derived from the Unicode data at first use (0.16 s), not hand-listed.
     - Every call checks the result equals `unicodedata.normalize("NFC", ...)`.
     - Stress-tested on 100k random strings from all decomposable characters, combining marks and Hangul: 0 mismatches.
-  - **IndicNLP map:** IndicNLP is treated as a black box and its output aligned to its input with a character diff (`difflib.SequenceMatcher`, `autojunk=False`). This is preferred over re-implementing its rules, which would drift from the library.
+  - **IndicNLP map:** IndicNLP is treated as a black box and its output aligned to its input. This is preferred over re-implementing its rules, which would drift from the library.
+    - **Alignment method (revised 2026-11-20, Codex review on PR #11):** the first version used `difflib.SequenceMatcher`. Its longest-common-substring matching mis-attributed repeated text. For `राम:रामः` → `रामःरामः`, the first output word mapped to the *second* source word.
+    - `align()` now uses a globally optimal, banded (±32 chars around the diagonal) alignment that walks both strings in step. Costs: match 0, insert/delete 1, substitution 2 (an LCS alignment). With substitution cost 1, unrelated nearby edits could tie with a path shifted by one char that swallowed a separator.
+    - The common prefix and suffix are copied directly, and identical text is a fast path. Runs of pure 1:1 substitutions stay exact per char.
+    - **Verification:**
+      - real IndicNLP output on repetitive noisy text: 1,350 texts across all 9 languages, 0 cases where output word k maps outside source word k;
+      - 0.02 s for 2,000 chars;
+      - in a harsher synthetic stress run (25% of chars edited, with edits reusing neighbouring letters), the remaining 70/5,000 word-provenance misses are all genuine ambiguity: in every one our alignment matches at least as many characters as the true edit history (43 more, 27 equal, 0 fewer).
   - Only the 9 configured languages are accepted, so IndicNLP's silent generic fallback can't happen. IndicNLP options are passed through; their names are checked, and library defaults are used unless set.
 - **Consequences:** Digit normalisation (T08) is a separate step that composes onto this map. `:` → visarga can alter text like `समय: 10`. This is IndicNLP's documented behaviour and is accepted for matching. Spans are always reported on the original.

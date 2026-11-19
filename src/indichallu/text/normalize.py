@@ -6,8 +6,8 @@ Pipeline (docs/DECISIONS.md D-012), each step returning an :class:`OffsetMap`:
    text in independent chunks split at NFC-safe boundaries.
 2. **IndicNLP** (:func:`indicnlp_normalize`): the language's IndicNLP normaliser
    (nukta forms decomposed, ZWJ/ZWNJ removed, ``|`` -> danda, ``:`` after a letter ->
-   visarga, ...), aligned to its input with a character diff because the library
-   returns no offsets.
+   visarga, ...), aligned to its input with a lockstep minimum-edit alignment
+   (:func:`align`) because the library returns no offsets.
 
 :func:`normalize` runs both and composes the maps, so a span found on the normalised
 text maps straight back to the original. Apply the same pipeline to everything that is
@@ -26,7 +26,6 @@ True
 from __future__ import annotations
 
 import unicodedata
-from difflib import SequenceMatcher
 from functools import lru_cache
 from typing import NamedTuple
 
@@ -112,19 +111,123 @@ def nfc(text: str) -> Normalized:
 # --- aligning a black-box transformation -----------------------------------------------
 
 
-def align(source: str, target: str) -> OffsetMap:
-    """Offset map from ``target`` back to ``source`` via a character-level diff.
+ALIGN_BAND = 32  # how far (in chars) the alignment may drift from the diagonal locally
+# A substitution costs the same as a deletion plus an insertion, so the optimal alignment
+# maximises matched characters (an LCS alignment). With cost 1, unrelated edits in
+# repetitive text can tie with an alignment shifted by one char that swallows a
+# neighbouring separator; with cost 2 the shifted path always loses matches.
+SUB_COST = 2
 
-    For transformations that don't report offsets (e.g. IndicNLP). Matching runs are
-    mapped exactly; each differing region is one replacement chunk.
+_EQ, _SUB, _DEL, _INS = 0, 1, 2, 3
+
+
+def _edit_ops(a: str, b: str) -> list[int]:
+    """Globally optimal alignment of ``a`` to ``b`` (match 0, insert/delete 1, sub 2).
+
+    Banded around the diagonal: normaliser edits are local, so the path never needs to
+    drift more than ``ALIGN_BAND`` chars beyond the overall length difference. Ties prefer
+    match/substitute, then delete, then insert, which keeps 1:1 substitutions (e.g.
+    digits) as substitutions.
+    """
+    n, m = len(a), len(b)
+    lo_d = min(0, m - n) - ALIGN_BAND  # allowed range of j - i
+    hi_d = max(0, m - n) + ALIGN_BAND
+    width = hi_d - lo_d + 1
+    inf = n + m + 1
+    cost = [[inf] * width for _ in range(n + 1)]
+    back = [bytearray(width) for _ in range(n + 1)]
+    for i in range(n + 1):
+        row, prev = cost[i], cost[i - 1] if i else None
+        for k in range(width):
+            j = i + lo_d + k
+            if j < 0 or j > m:
+                continue
+            if i == 0 and j == 0:
+                row[k] = 0
+                continue
+            best, op = inf, _EQ
+            if i and j:  # diagonal: same k in the previous row
+                c = prev[k] + (0 if a[i - 1] == b[j - 1] else SUB_COST)
+                if c < best:
+                    best, op = c, (_EQ if a[i - 1] == b[j - 1] else _SUB)
+            if i and k + 1 < width:  # delete a[i-1]: from (i-1, j)
+                c = prev[k + 1] + 1
+                if c < best:
+                    best, op = c, _DEL
+            if j and k:  # insert b[j-1]: from (i, j-1)
+                c = row[k - 1] + 1
+                if c < best:
+                    best, op = c, _INS
+            row[k], back[i][k] = best, op
+    ops: list[int] = []
+    i, j = n, m
+    while i or j:
+        op = back[i][j - i - lo_d]
+        ops.append(op)
+        if op in (_EQ, _SUB):
+            i, j = i - 1, j - 1
+        elif op == _DEL:
+            i -= 1
+        else:
+            j -= 1
+    ops.reverse()
+    return ops
+
+
+def align(source: str, target: str) -> OffsetMap:
+    """Offset map from ``target`` back to ``source`` for a black-box transformation.
+
+    For transformations that don't report offsets (e.g. IndicNLP), which make small local
+    edits. Uses a globally optimal (LCS-style) alignment that walks both strings in step,
+    so repeated text keeps its provenance. A longest-common-substring diff can attribute an
+    output word to a later identical source word (DECISIONS D-012). Unchanged text and runs
+    of 1:1 substitutions map exactly; any other differing region is one replacement chunk.
+
+    >>> m = align("राम:रामः", "रामःरामः")   # only the first ":" became a visarga
+    >>> m.to_source(0, 4), m.to_source(4, 8)
+    ((0, 4), (4, 8))
     """
     builder = OffsetMapBuilder(source)
-    matcher = SequenceMatcher(None, source, target, autojunk=False)
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            builder.copy(i2 - i1)
-        else:  # replace / delete / insert
-            builder.replace(i2 - i1, target[j1:j2])
+    if source == target:
+        return OffsetMap.identity(source)
+    n, m = len(source), len(target)
+    p = 0  # common prefix and suffix are copied in lockstep
+    while p < min(n, m) and source[p] == target[p]:
+        p += 1
+    s = 0
+    while s < min(n, m) - p and source[n - 1 - s] == target[m - 1 - s]:
+        s += 1
+    builder.copy(p)
+
+    mid_target = target[p : m - s]
+    j = 0
+    run_src, run_tgt, run_all_subs = 0, [], True
+
+    def flush() -> None:
+        nonlocal run_src, run_tgt, run_all_subs
+        if run_src or run_tgt:
+            if run_all_subs:  # pure 1:1 substitutions keep exact per-char offsets
+                for ch in run_tgt:
+                    builder.replace(1, ch)
+            else:
+                builder.replace(run_src, "".join(run_tgt))
+        run_src, run_tgt, run_all_subs = 0, [], True
+
+    for op in _edit_ops(source[p : n - s], mid_target):
+        if op == _EQ:
+            flush()
+            builder.copy(1)
+            j += 1
+            continue
+        if op in (_SUB, _DEL):
+            run_src += 1
+        if op in (_SUB, _INS):
+            run_tgt.append(mid_target[j])
+            j += 1
+        if op != _SUB:
+            run_all_subs = False
+    flush()
+    builder.copy(s)
     offsets = builder.build()
     assert offsets.target == target
     return offsets
