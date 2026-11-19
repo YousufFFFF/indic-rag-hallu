@@ -24,9 +24,18 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - Atomic, UTF-8 JSONL read/write.
   - `tests/test_schema.py` uses the slide-17 worked example as its fixture, with offsets computed from the strings, plus 23 rejection cases, each checked to fail for the intended reason.
   - 84 tests pass in the container.
+- T04 merged (#8), after fixing the Codex review finding (the claim score matrix is now all-or-nothing).
+- **T05: run utilities.** `src/indichallu/runs.py` (D-009).
+  - Seeding: `set_seed`. Config handling: `load_config`, `apply_overrides` (only existing keys), `config_hash`.
+  - Provenance: `git_info` and `git_diff`, `environment_info` (packages, CUDA, GPUs).
+  - `start_run` creates `results/runs/<run_id>/` with `config.yaml`, `meta.json`, and `git.diff` when the tree is dirty. `Run.add_model` requires a revision. The status records `completed` / `failed`.
+  - `git` added to the dev image (+ `safe.directory`).
+  - 113 tests pass. Git tests use a throwaway repo, so they don't depend on this repo's state.
+  - Codex review fixes: 32-bit seed bound checked before the folder exists; strict, explicitly reset deterministic mode.
+  - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T05: run utilities (`results/runs/<run_id>/` with resolved config, git hash, model revisions, GPU name; seeding helper).
+- T06: `text/offsets.py` (composable offset maps, normalised ↔ original), then T07–T09 (normalisation, Indic digits, sentence segmentation).
 
 ## 2026-11-19
 
@@ -45,5 +54,5 @@ Dated log of what was done, what broke, and what's next. Newest first.
 
 **Next**
 - T02: GitHub Actions CI (CPU pytest + ruff), branch protection on `main`.
-- T05: run utilities (`results/runs/<run_id>/` with resolved config, git hash, model revisions, GPU name; seeding helper).
+- T03: `configs/languages.yaml`.
 - T00: request IndicNER access; `ollama pull qwen3:4b`.

@@ -77,3 +77,22 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Validation:** NLI probabilities must sum to 1 (±1e-3). Unknown fields are rejected everywhere, except backend-specific decoding extras.
   - **JSONL:** UTF-8 without `\u` escapes, one compact line per record, atomic writes, line numbers in parse errors.
 - **Consequences:** Invalid records fail at write/read time instead of producing silently wrong metrics. Schema changes need a decision entry and a test update.
+
+## D-009 · Run folders, provenance and seeding (2026-11-20)
+
+- **Context:** CLAUDE.md §2 requires config-driven, seeded runs. Each run must write `results/runs/<run_id>/` with the resolved config, git commit and model revisions. Every reported number has to be traceable back to a run.
+- **Decision** (`src/indichallu/runs.py`):
+  - `run_id = <UTC yyyymmdd-HHMMSS>-<name>-<8-char config hash>`. Existing folders are never overwritten.
+  - **`config.yaml`** holds the fully resolved config. Overrides are `dotted.key=value`, parsed as YAML. Only existing keys can be overridden, so typos fail.
+  - **`meta.json`** records:
+    - git commit, branch and dirty flag
+    - models, each with a **mandatory** revision
+    - seed and determinism flag
+    - Python, platform, and versions of the tracked packages
+    - CUDA version and GPU names
+    - the command line
+    - start/end time, and a status of `running` / `completed` / `failed` (with the error)
+  - **`git.diff`** is saved when the tree is dirty. `require_clean=True` refuses to start from a dirty tree; use it for every number that gets reported.
+  - **Seeding:** the config must contain `seed`, an int in [0, 2³²−1] (NumPy's limit). It is validated before the run folder is created. `set_seed` seeds Python, NumPy and PyTorch (CPU + CUDA). `deterministic=True` uses PyTorch's **strict** deterministic mode, which raises on a nondeterministic operation instead of warning. The mode is set explicitly, on or off, on every call, so the recorded `deterministic` flag always matches PyTorch's actual state. (From the Codex review on PR #9.)
+  - **git in the image:** `git` is installed in the dev image, and `/workspace` is marked a git `safe.directory` (the bind-mounted repo has a different owner). Without this, provenance can't be recorded in Docker or CI.
+- **Consequences:** Every experiment script goes through `start_run`. Reported results must come from runs with `dirty: false`.
