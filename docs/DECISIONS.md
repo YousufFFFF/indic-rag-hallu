@@ -136,11 +136,17 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
     - Stress-tested on 100k random strings from all decomposable characters, combining marks and Hangul: 0 mismatches.
   - **IndicNLP map:** IndicNLP is treated as a black box and its output aligned to its input. This is preferred over re-implementing its rules, which would drift from the library.
     - **Alignment method (revised 2026-11-20, Codex review on PR #11):** the first version used `difflib.SequenceMatcher`. Its longest-common-substring matching mis-attributed repeated text. For `राम:रामः` → `रामःरामः`, the first output word mapped to the *second* source word.
-    - `align()` now uses a globally optimal, banded (±32 chars around the diagonal) alignment that walks both strings in step. Costs: match 0, insert/delete 1, substitution 2 (an LCS alignment). With substitution cost 1, unrelated nearby edits could tie with a path shifted by one char that swallowed a separator.
+    - `align()` now uses a globally optimal alignment that walks both strings in step. Costs:
+      - insert/delete 1;
+      - substituting a **related** char costs 1: same NFKD base letter (ऩ→न), same digit value (२→2), or whitespace→whitespace;
+      - any other substitution costs 2, i.e. LCS-like. With a flat cost of 1, unrelated nearby edits could tie with a path shifted by one char that swallowed a separator.
+    - **Band doubling (Codex review on PR #12):** the alignment starts with a ±32-char band around the diagonal and doubles it until the result is *provably* globally optimal. A path that leaves the band costs ≥ `|m−n| + 2·band + 2`, because only insert/delete change the diagonal and each costs 1. A fixed band missed cumulative drift: deletions then expansions that cancel out in length, e.g. 33 ZWNJs + 33 `ऩ`.
+    - **Chunking:** each substitution starts its own chunk, and the inserts/deletes right after it join it (`ऩ` → `न`+nukta is 1→2; `ে`+`া` → `ো` is 2→1). Inserts/deletes with no substitution before them are their own chunk (deleted ZWNJs). The earlier rule of "every differing region is one chunk" turned a region with no matching chars into a single chunk.
     - The common prefix and suffix are copied directly, and identical text is a fast path. Runs of pure 1:1 substitutions stay exact per char.
     - **Verification:**
-      - real IndicNLP output on repetitive noisy text: 1,350 texts across all 9 languages, 0 cases where output word k maps outside source word k;
+      - real IndicNLP output on repetitive noisy text, including 40-ZWNJ runs: 1,350 texts across all 9 languages, 0 cases where output word k maps outside source word k;
+      - band doubling matches an unbanded alignment's cost on 60 random long-drift cases;
       - 0.02 s for 2,000 chars;
-      - in a harsher synthetic stress run (25% of chars edited, with edits reusing neighbouring letters), the remaining 70/5,000 word-provenance misses are all genuine ambiguity: in every one our alignment matches at least as many characters as the true edit history (43 more, 27 equal, 0 fewer).
+      - in a harsher synthetic stress run (25% of chars edited, with edits reusing neighbouring letters), the remaining 70/5,000 word-provenance misses are all genuine ambiguity: in every one our alignment matches at least as many characters as the true edit history (62 more, 8 equal, 0 fewer).
   - Only the 9 configured languages are accepted, so IndicNLP's silent generic fallback can't happen. IndicNLP options are passed through; their names are checked, and library defaults are used unless set.
 - **Consequences:** Digit normalisation (T08) is a separate step that composes onto this map. `:` → visarga can alter text like `समय: 10`. This is IndicNLP's documented behaviour and is accepted for matching. Spans are always reported on the original.

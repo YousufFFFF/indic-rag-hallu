@@ -284,3 +284,56 @@ def test_align_identity_and_extremes():
     assert align("", "").target == ""
     assert align("राम", "").to_target(0, 3) == (0, 0)
     assert align("", "राम").to_source(0, 3) == (0, 0)
+
+
+# --- cumulative drift (Codex review on PR #12) -----------------------------------------
+
+
+@pytest.mark.parametrize(("deleted", "expanded"), [(33, 33), (100, 100), (200, 10), (5, 120)])
+def test_cumulative_drift_beyond_the_initial_band(deleted, expanded):
+    """ZWNJs deleted, then ऩ expanded to न + nukta: lengths can cancel out while the true
+    alignment drifts far from the diagonal. Each pair must map to its own ऩ."""
+    source = ZWNJ * deleted + "\u0929" * expanded
+    r = indicnlp_normalize(source, "hi")
+    assert r.text == "\u0928\u093c" * expanded
+    for k in range(expanded):
+        assert r.offsets.to_source(2 * k, 2 * k + 2) == (deleted + k, deleted + k + 1)
+    assert r.offsets.to_target(0, deleted) == (0, 0)  # the ZWNJ run was deleted
+
+
+def test_contraction_maps_to_both_parts():
+    m = align("\u0995\u09c7\u09be", "\u0995\u09cb")
+    assert m.to_source(1, 2) == (1, 3)
+
+
+def _ops_cost(a: str, b: str, ops: list[int]) -> int:
+    from indichallu.text import normalize as N
+
+    i = j = total = 0
+    for op in ops:
+        if op == N._EQ:
+            i, j = i + 1, j + 1
+        elif op == N._SUB:
+            total += N._sub_cost(a[i], b[j])
+            i, j = i + 1, j + 1
+        elif op == N._DEL:
+            total, i = total + N.INDEL_COST, i + 1
+        else:
+            total, j = total + N.INDEL_COST, j + 1
+    assert (i, j) == (len(a), len(b))
+    return total
+
+
+@pytest.mark.parametrize("seed", range(60))
+def test_band_doubling_reaches_the_global_optimum(seed):
+    """_edit_ops must cost exactly what an unbanded alignment costs, even with long
+    deletions followed by long insertions (drift far beyond ALIGN_BAND)."""
+    from indichallu.text import normalize as N
+
+    rng = random.Random(70_000 + seed)
+    pool = "रामकख\u0929\u0928\u093c२1 " + ZWNJ
+    core = "".join(rng.choice(pool) for _ in range(rng.randint(0, 60)))
+    a = ZWNJ * rng.randint(0, 80) + core
+    b = core.replace(ZWNJ, "") + "\u0928\u093c" * rng.randint(0, 80)
+    full_cost, _ = N._banded_ops(a, b, band=len(a) + len(b) + 1)
+    assert _ops_cost(a, b, N._edit_ops(a, b)) == full_cost

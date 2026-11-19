@@ -71,7 +71,8 @@ Dated log of what was done, what broke, and what's next. Newest first.
     - IndicNLP: 0 / 1,350 failures;
     - harsh synthetic edits: 70 / 5,000 misses, all genuinely ambiguous (our alignment never matches fewer characters than the true edits).
   - First attempt with substitution cost 1 failed 8 synthetic cases by tying with a shifted path; cost 2 fixed them.
-  - 1,253 tests pass.
+  - Second Codex finding (on #12): a fixed band missed cumulative drift (33 ZWNJs + 33 `ऩ` mapped output into the deleted ZWNJs). Fixed with provably optimal band doubling, related-character substitution cost 1, and per-substitution chunking. Regression tests: drift up to 200 chars; band doubling equals unbanded cost on 60 random cases.
+  - 1,318 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
