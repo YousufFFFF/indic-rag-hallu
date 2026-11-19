@@ -93,6 +93,6 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
     - the command line
     - start/end time, and a status of `running` / `completed` / `failed` (with the error)
   - **`git.diff`** is saved when the tree is dirty. `require_clean=True` refuses to start from a dirty tree; use it for every number that gets reported.
-  - **Seeding:** the config must contain `seed`. `set_seed` seeds Python, NumPy and PyTorch (CPU + CUDA). An opt-in `deterministic=True` turns on deterministic PyTorch kernels.
+  - **Seeding:** the config must contain `seed`, an int in [0, 2³²−1] (NumPy's limit). It is validated before the run folder is created. `set_seed` seeds Python, NumPy and PyTorch (CPU + CUDA). `deterministic=True` uses PyTorch's **strict** deterministic mode, which raises on a nondeterministic operation instead of warning. The mode is set explicitly, on or off, on every call, so the recorded `deterministic` flag always matches PyTorch's actual state. (From the Codex review on PR #9.)
   - **git in the image:** `git` is installed in the dev image, and `/workspace` is marked a git `safe.directory` (the bind-mounted repo has a different owner). Without this, provenance can't be recorded in Docker or CI.
 - **Consequences:** Every experiment script goes through `start_run`. Reported results must come from runs with `dirty: false`.

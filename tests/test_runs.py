@@ -60,10 +60,29 @@ def test_set_seed_makes_all_rngs_reproducible():
     assert _draws() != first
 
 
-@pytest.mark.parametrize("bad", [-1, 1.5, "7", True, None])
+@pytest.mark.parametrize("bad", [-1, 1.5, "7", True, None, 2**32])
 def test_set_seed_rejects_bad_values(bad):
     with pytest.raises(ValueError):
         set_seed(bad)
+
+
+def test_largest_32_bit_seed_is_accepted():
+    set_seed(2**32 - 1)
+
+
+@pytest.fixture
+def restore_torch_determinism():
+    yield
+    set_seed(0, deterministic=False)
+
+
+def test_deterministic_mode_is_strict_and_explicit(restore_torch_determinism):
+    set_seed(1, deterministic=True)
+    assert torch.are_deterministic_algorithms_enabled()
+    assert not torch.is_deterministic_algorithms_warn_only_enabled()  # raises, not warns
+    # a later non-deterministic call must switch it off, not inherit it
+    set_seed(1, deterministic=False)
+    assert not torch.are_deterministic_algorithms_enabled()
 
 
 # --- config overrides ------------------------------------------------------------------
@@ -180,6 +199,13 @@ def test_existing_run_folder_is_never_overwritten(repo, tmp_path, monkeypatch):
     start_run(CONFIG, name="same", results_root=tmp_path / "r", repo=repo)
     with pytest.raises(FileExistsError):
         start_run(CONFIG, name="same", results_root=tmp_path / "r", repo=repo)
+
+
+def test_out_of_range_seed_is_refused_before_any_folder_exists(repo, tmp_path):
+    results = tmp_path / "r"
+    with pytest.raises(ValueError):
+        start_run({**CONFIG, "seed": 2**32}, name="big", results_root=results, repo=repo)
+    assert not results.exists()
 
 
 def test_config_without_seed_is_refused(repo, tmp_path):

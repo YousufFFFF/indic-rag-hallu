@@ -30,7 +30,8 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - Provenance: `git_info` and `git_diff`, `environment_info` (packages, CUDA, GPUs).
   - `start_run` creates `results/runs/<run_id>/` with `config.yaml`, `meta.json`, and `git.diff` when the tree is dirty. `Run.add_model` requires a revision. The status records `completed` / `failed`.
   - `git` added to the dev image (+ `safe.directory`).
-  - 109 tests pass. Git tests use a throwaway repo, so they don't depend on this repo's state.
+  - 113 tests pass. Git tests use a throwaway repo, so they don't depend on this repo's state.
+  - Codex review fixes: 32-bit seed bound checked before the folder exists; strict, explicitly reset deterministic mode.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**

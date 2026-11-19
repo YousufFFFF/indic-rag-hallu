@@ -59,14 +59,26 @@ _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 # --- seeding -------------------------------------------------------------------------
 
 
+MAX_SEED = 2**32 - 1  # NumPy's legacy RNG accepts 32-bit seeds only
+
+
+def validate_seed(seed: object) -> int:
+    """Return ``seed`` if it is an int in ``[0, 2**32 - 1]``, else raise ValueError."""
+    if not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed <= MAX_SEED:
+        raise ValueError(f"seed must be an int in [0, {MAX_SEED}], got {seed!r}")
+    return seed
+
+
 def set_seed(seed: int, *, deterministic: bool = False) -> None:
     """Seed Python, NumPy and PyTorch (CPU and CUDA).
 
-    ``deterministic=True`` additionally asks PyTorch for deterministic kernels, which can
-    be slower; use it for final experiment runs.
+    ``deterministic`` is applied explicitly on every call, so a previous call can't leave
+    the process in a different mode than the one recorded. With ``deterministic=True``,
+    PyTorch runs in strict mode: an operation without a deterministic implementation
+    raises instead of silently running a nondeterministic kernel. (Set
+    ``CUBLAS_WORKSPACE_CONFIG`` before CUDA initialises; it is set here only as a default.)
     """
-    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
-        raise ValueError(f"seed must be a non-negative int, got {seed!r}")
+    validate_seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)  # affects subprocesses only
     random.seed(seed)
     np.random.seed(seed)
@@ -79,9 +91,9 @@ def set_seed(seed: int, *, deterministic: bool = False) -> None:
         torch.cuda.manual_seed_all(seed)
     if deterministic:
         os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-        torch.use_deterministic_algorithms(True, warn_only=True)
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
+    torch.use_deterministic_algorithms(deterministic, warn_only=False)
+    torch.backends.cudnn.benchmark = not deterministic
+    torch.backends.cudnn.deterministic = deterministic
 
 
 # --- config --------------------------------------------------------------------------
@@ -261,6 +273,7 @@ def start_run(
         raise ValueError(f"run name {name!r} must be lowercase letters, digits and '-'")
     if "seed" not in config:
         raise ValueError("config must set 'seed' (CLAUDE.md §2: every run is seeded)")
+    validate_seed(config["seed"])  # before anything touches the filesystem
 
     git = git_info(repo)
     if require_clean and git["dirty"]:
