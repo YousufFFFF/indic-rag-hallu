@@ -117,3 +117,23 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 - **Context:** The first `OffsetMapBuilder` docstring example had an off-by-one offset. That is exactly the error class this project must avoid in documentation too.
 - **Decision:** pytest runs with `--doctest-modules` over `src/` as well as `tests/`, so every `>>>` example is executed in CI.
 - **Consequences:** Docstring examples must be correct and runnable. Illustrative snippets that shouldn't run use a `::` literal block instead of `>>>`.
+
+## D-012 · Normalisation pipeline: NFC, then IndicNLP (2026-11-20)
+
+- **Context:** Deck block diagram box 1 ("Normalisation & Script Handling"); CLAUDE.md §3 row 2: NFC + IndicNLP normaliser, all with offset maps. Python's `unicodedata` and IndicNLP return no offsets. IndicNLP (v0.92) does more than script fixes:
+  - decomposes nukta letters;
+  - deletes ZWJ/ZWNJ, word joiner, soft hyphen and BOM;
+  - turns NBSP / zero-width space into a space;
+  - `|` → danda;
+  - `:` after an Indic letter → visarga.
+
+  Its punctuation step is a no-op in this version. For an unknown language code it silently falls back to a generic normaliser.
+- **Decision** (`src/indichallu/text/normalize.py`):
+  - **Order: NFC, then IndicNLP.** `normalize()` composes both offset maps back to the original. The output is a *matching form*, not guaranteed NFC: IndicNLP decomposes U+0929/0931/0934, which NFC keeps composed. Claims and passages must go through the same pipeline.
+  - **Exact NFC map:** normalise in chunks split before characters whose canonical decomposition starts with a starter that can't compose backwards (ICU's `hasCompBoundaryBefore`).
+    - "Composing starters" (e.g. Bengali U+09BE, Tamil U+0BBE, Malayalam U+0D3E, Kannada U+0CD5, Hangul V/T) are derived from the Unicode data at first use (0.16 s), not hand-listed.
+    - Every call checks the result equals `unicodedata.normalize("NFC", ...)`.
+    - Stress-tested on 100k random strings from all decomposable characters, combining marks and Hangul: 0 mismatches.
+  - **IndicNLP map:** IndicNLP is treated as a black box and its output aligned to its input with a character diff (`difflib.SequenceMatcher`, `autojunk=False`). This is preferred over re-implementing its rules, which would drift from the library.
+  - Only the 9 configured languages are accepted, so IndicNLP's silent generic fallback can't happen. IndicNLP options are passed through; their names are checked, and library defaults are used unless set.
+- **Consequences:** Digit normalisation (T08) is a separate step that composes onto this map. `:` → visarga can alter text like `समय: 10`. This is IndicNLP's documented behaviour and is accepted for matching. Spans are always reported on the original.
