@@ -1,0 +1,99 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+pip-wheel-metadata/
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+.python-version
+
+# ---- Testing / tooling ----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- Data and results (download scripts are committed, data is not) ----
+data/raw/
+data/interim/
+data/processed/
+results/runs/
+
+# ---- Hugging Face, model and framework caches ----
+.cache/
+hf_cache/
+.hf_cache/
+huggingface/
+.huggingface/
+transformers_cache/
+sentence_transformers_cache/
+torch_cache/
+/models/
+/checkpoints/
+wandb/
+mlruns/
+lightning_logs/
+.gradio/
+flagged/
+
+# ---- Large model / index artefacts ----
+*.faiss
+*.index
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.gguf
+chroma/
+chroma_db/
+
+# ---- Secrets: tokens, API keys, credentials ----
+.env
+.env.*
+!.env.example
+*.env
+.secrets
+secrets/
+*secret*
+*.token
+token
+token.txt
+*_token
+*_token.txt
+*_token.json
+*credentials*
+*apikey*
+*api_key*
+*.pem
+*.key
+.netrc
+.huggingface_token
+kaggle.json
+.claude/settings.local.json
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+~$*
