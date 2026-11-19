@@ -10,6 +10,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /workspace
 
+# 0) git: every run records the commit it ran from (src/indichallu/runs.py).
+#    The repo is bind-mounted with a different owner, so mark it safe for git.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/* \
+ && git config --system --add safe.directory /workspace
+
 # 1) Fully pinned dependency set (CPU build of torch from the PyTorch index).
 COPY requirements-lock.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
