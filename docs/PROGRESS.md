@@ -46,10 +46,24 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - First design (bisection over monotone intervals) was replaced: composition can produce non-monotone intervals. A regression test covers it.
   - Doctests now run in CI (D-011). The first builder docstring example had an off-by-one; it is fixed and now executed.
   - 431 tests pass.
+- T06 merged (#10), Codex: no findings.
+- **T07: normalisation.** `src/indichallu/text/normalize.py` (D-012).
+  - `nfc()`: exact NFC with an offset map, computed in chunks split at safe boundaries.
+  - `indicnlp_normalize()`: the library's output, diff-aligned to its input.
+  - `normalize()`: NFC → IndicNLP with one composed map. `align()`: a generic diff-based map for black-box transforms.
+  - First boundary rule was too conservative: a NFC-changed char like U+095B dragged its neighbour into its chunk. Fixed to decide by the decomposition's first character, as ICU does. A test pins it.
+  - Tests cover:
+    - NFC equal to `unicodedata` on 300 random Indic strings and 3000 "hard" strings (all decomposable characters, combining marks, Hangul);
+    - two-part vowels in Bengali, Tamil, Malayalam, Kannada and Telugu;
+    - mark reordering;
+    - IndicNLP output identical to the library's, with ZWNJ / `|` / visarga edits mapping back;
+    - every configured language round-tripping its endonym and native digits;
+    - the slide-17 answer with ZWNJ, `ज़` and `|` noise mapping back to the original.
+  - 959 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T07: `text/normalize.py` (NFC + IndicNLP normaliser with offset maps), T08: `text/numerals.py` (Indic digits), T09: `text/sentseg.py` (sentence segmentation with offsets).
+- T08: `text/numerals.py` (Indic digits → ASCII with offsets, all 8 digit blocks), then T09: `text/sentseg.py` (sentence segmentation with offsets).
 
 ## 2026-11-19
 
