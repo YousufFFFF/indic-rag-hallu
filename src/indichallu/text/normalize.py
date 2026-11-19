@@ -123,8 +123,14 @@ RELATED_SUB_COST = 1
 SUB_COST = 2
 
 # Initial half-width of the band around the diagonal. It doubles until the banded optimum
-# is provably global (see _edit_ops), so cumulative drift of any size is handled.
+# is provably global (see _edit_ops), so cumulative drift is handled...
 ALIGN_BAND = 32
+# ...within a work budget: one alignment pass fills (rows x band width) cells. If the next
+# pass would exceed this, align() falls back to one coarse chunk for the differing region
+# (pathological input, e.g. thousands of deleted ZWNJs followed by as many expansions).
+# That is still safe, since every span maps to a region containing its true source, just
+# less precise. Time and memory stay bounded (DECISIONS D-012).
+MAX_ALIGN_CELLS = 2_000_000
 
 _EQ, _SUB, _DEL, _INS = 0, 1, 2, 3
 
@@ -149,21 +155,23 @@ def _banded_ops(a: str, b: str, band: int) -> tuple[int, list[int]]:
     """Optimal alignment restricted to diagonals j - i within ``band`` of [0, m - n].
 
     Returns (cost, ops). Ties prefer match/substitute, then delete, then insert, which
-    keeps 1:1 substitutions (e.g. digits) as substitutions.
+    keeps 1:1 substitutions (e.g. digits) as substitutions. Memory: two rows of costs plus
+    one byte of backpointer per band cell.
     """
     n, m = len(a), len(b)
     lo_d = min(0, m - n) - band  # allowed range of j - i
     hi_d = max(0, m - n) + band
     width = hi_d - lo_d + 1
     inf = SUB_COST * (n + m) + 1
-    cost = [[inf] * width for _ in range(n + 1)]
+    prev: list[int] = []
+    row = [inf] * width
     back = [bytearray(width) for _ in range(n + 1)]
     for i in range(n + 1):
-        row, prev = cost[i], cost[i - 1] if i else None
-        for k in range(width):
+        if i:
+            prev, row = row, [inf] * width
+        # only cells with 0 <= j <= m
+        for k in range(max(0, -i - lo_d), min(width - 1, m - i - lo_d) + 1):
             j = i + lo_d + k
-            if j < 0 or j > m:
-                continue
             if i == 0 and j == 0:
                 row[k] = 0
                 continue
@@ -182,6 +190,7 @@ def _banded_ops(a: str, b: str, band: int) -> tuple[int, list[int]]:
                 if c < best:
                     best, op = c, _INS
             row[k], back[i][k] = best, op
+    final_cost = row[m - n - lo_d]
     ops: list[int] = []
     i, j = n, m
     while i or j:
@@ -194,22 +203,26 @@ def _banded_ops(a: str, b: str, band: int) -> tuple[int, list[int]]:
         else:
             j -= 1
     ops.reverse()
-    return cost[n][m - n - lo_d], ops
+    return final_cost, ops
 
 
-def _edit_ops(a: str, b: str) -> list[int]:
-    """Globally optimal alignment of ``a`` to ``b`` under the costs above.
+def _edit_ops(a: str, b: str, max_cells: int | None = None) -> list[int] | None:
+    """Globally optimal alignment of ``a`` to ``b`` under the costs above, or None.
 
     Runs the banded alignment and doubles the band until the result is provably optimal.
     Every insert/delete costs 1 and only they change the diagonal ``d = j - i``, so a path
     that leaves the band reaches some diagonal ``d`` with ``|d| > band + max(0, D)`` or
     ``d < min(0, D) - band`` (``D = m - n``) and costs at least ``|d| + |D - d|`` >=
     ``|D| + 2*band + 2``. If the banded optimum costs less than that, nothing outside the
-    band can beat it (Ukkonen's band-doubling argument).
+    band can beat it (Ukkonen's band-doubling argument). Returns None if a pass would
+    need more than ``max_cells`` cells (rows x band width; default ``MAX_ALIGN_CELLS``).
     """
     n, m = len(a), len(b)
+    max_cells = MAX_ALIGN_CELLS if max_cells is None else max_cells
     band = ALIGN_BAND
     while True:
+        if (n + 1) * (abs(m - n) + 2 * band + 1) > max_cells:
+            return None
         cost, ops = _banded_ops(a, b, band)
         covers_all = min(0, m - n) - band <= -n and max(0, m - n) + band >= m
         if covers_all or cost < abs(m - n) + 2 * band + 2:
@@ -228,7 +241,8 @@ def align(source: str, target: str) -> OffsetMap:
     Chunks: unchanged text maps 1:1. Each substitution starts its own chunk, and inserts
     or deletes that directly follow it join that chunk (an expansion like ऩ -> न + nukta,
     or a contraction like ে + া -> ো). Inserts/deletes with no substitution before them
-    form a chunk of their own (e.g. deleted ZWNJs).
+    form a chunk of their own (e.g. deleted ZWNJs). If optimality would need a band wider
+    than ``MAX_ALIGN_CELLS`` allows, the differing middle becomes one chunk: coarse but safe.
 
     >>> m = align("राम:रामः", "रामःरामः")   # only the first ":" became a visarga
     >>> m.to_source(0, 4), m.to_source(4, 8)
@@ -256,7 +270,11 @@ def align(source: str, target: str) -> OffsetMap:
             builder.replace(chunk_src, "".join(chunk_tgt))
         chunk_src, chunk_tgt = 0, []
 
-    for op in _edit_ops(source[p : n - s], mid_target):
+    ops = _edit_ops(source[p : n - s], mid_target)
+    if ops is None:  # pathological drift: one coarse but safe chunk for the middle
+        builder.replace(n - s - p, mid_target)
+        ops = []
+    for op in ops:
         if op == _EQ:
             flush()
             builder.copy(1)

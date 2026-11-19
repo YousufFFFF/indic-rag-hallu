@@ -337,3 +337,50 @@ def test_band_doubling_reaches_the_global_optimum(seed):
     b = core.replace(ZWNJ, "") + "\u0928\u093c" * rng.randint(0, 80)
     full_cost, _ = N._banded_ops(a, b, band=len(a) + len(b) + 1)
     assert _ops_cost(a, b, N._edit_ops(a, b)) == full_cost
+
+
+# --- bounded work (Codex review on PR #12) ---------------------------------------------
+
+
+def _assert_safe_hull(r, deleted: int, expanded: int) -> None:
+    """Every न + nukta pair maps to a source span that CONTAINS its own ऩ."""
+    for k in range(expanded):
+        s, e = r.offsets.to_source(2 * k, 2 * k + 2)
+        assert s <= deleted + k and deleted + k + 1 <= e
+
+
+def test_over_budget_falls_back_to_a_safe_coarse_chunk(monkeypatch):
+    from indichallu.text import normalize as N
+
+    monkeypatch.setattr(N, "MAX_ALIGN_CELLS", 500)  # force the fallback cheaply
+    source = ZWNJ * 40 + "\u0929" * 40
+    r = indicnlp_normalize(source, "hi")
+    assert r.text == "\u0928\u093c" * 40
+    _assert_safe_hull(r, 40, 40)
+    assert N._edit_ops(source, r.text) is None
+
+
+def test_pathological_drift_is_bounded_in_work_and_stays_safe(monkeypatch):
+    """Thousands of deleted ZWNJs + as many expansions: every alignment pass stays within
+    the cell budget (memory is 1 byte per cell plus two cost rows), and spans stay safe."""
+    from indichallu.text import normalize as N
+
+    passes: list[int] = []
+    real = N._banded_ops
+
+    def spy(a, b, band):
+        passes.append((len(a) + 1) * (abs(len(b) - len(a)) + 2 * band + 1))
+        return real(a, b, band)
+
+    monkeypatch.setattr(N, "_banded_ops", spy)
+    k = 1500
+    r = indicnlp_normalize(ZWNJ * k + "\u0929" * k, "hi")
+    assert passes and max(passes) <= N.MAX_ALIGN_CELLS
+    _assert_safe_hull(r, k, k)
+
+
+def test_moderate_drift_is_still_exact_within_budget():
+    source = ZWNJ * 300 + "\u0929" * 300
+    r = indicnlp_normalize(source, "hi")
+    for k in range(300):
+        assert r.offsets.to_source(2 * k, 2 * k + 2) == (300 + k, 301 + k)
