@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+reviews:
+  profile: assertive
+
+  # Not reviewed: generated data and run outputs, notebooks (outputs are
+  # stored inline in the file), and the extracted Stage I deck text.
+  path_filters:
+    - "!data/**"
+    - "!results/**"
+    - "!**/*.ipynb"
+    - "!docs/stage1_deck.md"
+
+  path_instructions:
+    - path: "src/indichallu/text/**"
+      instructions: |
+        - Check that all text is Unicode-normalised to NFC before comparison or matching.
+        - Every transformation that changes the string (NFC, IndicNLP normalisation,
+          Indic digit normalisation, segmentation) must return an offset map back to the
+          ORIGINAL string. Flag any span (start/end) computed on normalised text that is
+          not mapped back through such an offset map.
+        - Flag off-by-one errors, maps that break on combining characters
+          (matras, viramas, nuktas), and missing round-trip tests.
+
+    - path: "src/indichallu/detection/**"
+      instructions: |
+        - Flag hard-coded metric values or results.
+        - Flag decision thresholds or other tunable values that are not loaded from a
+          config file under configs/.
+        - Flag any data leakage between train/val/test: tuning on test, the same
+          passage or question appearing in more than one split, or test labels used
+          during fitting or threshold selection.
+
+    - path: "src/indichallu/eval/**"
+      instructions: |
+        - Flag hard-coded metric values or results.
+        - Flag thresholds or other tunable values that are not loaded from a config file
+          under configs/.
+        - Flag any data leakage between train/val/test splits.
+        - Metrics must be reported per language as well as pooled.
+
+    - path: "scripts/**"
+      instructions: |
+        - Flag any number written into a table, figure, README or report that is not read
+          from files under results/. No hand-typed results.
+
+    - path: "paper/**"
+      instructions: |
+        - Flag any number in the text, tables or figures that is not generated from files
+          under results/. No hand-typed results.
+
+    - path: "**"
+      instructions: |
+        - Flag committed secrets: Hugging Face tokens (hf_...), API keys, passwords,
+          private keys, or .env contents.
+        - In experiment, training, generation or evaluation code, flag missing random
+          seeds (Python random, NumPy, PyTorch/CUDA) and non-fixed decoding settings.
