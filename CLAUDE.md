@@ -31,6 +31,7 @@ We measure **faithfulness to the retrieved context**, not world factuality. Ever
 - **Reproducibility:** all runs are config-driven (YAML under `configs/`), seeded, with a fixed decoding config. Each run writes `results/runs/<run_id>/` containing the resolved config, git commit hash, model revisions, and outputs.
 - **Compute budget:** one 16 GB GPU (Colab/Kaggle T4-class) plus a CPU laptop. Use 4-bit quantisation for 7–10B generators. Cache every LLM generation to JSONL so it is never recomputed. **Ask before** any download > 10 GB or any paid API call.
 - **Unicode:** normalise to NFC. Never compute spans on normalised text without an offset map back to the original string — span metrics are computed on original character offsets.
+- Never commit to main directly. Work on a feature branch, push it, open a PR with gh pr create (clear title, summary of changes, how it was tested), and wait for the maintainer to review and merge.
 - Small, focused commits with clear messages. `pytest` for tests; GitHub Actions runs unit tests on CPU (tiny models or mocks only).
 - Python 3.11. Package as `src/indichallu/` with `pyproject.toml`; pin dependencies.
 - Keep modules framework-free and testable. LlamaIndex/LangChain (listed in the deck) are used only as a thin orchestration layer for indexing/retrieval — the detector itself does not depend on them.
