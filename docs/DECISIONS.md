@@ -70,7 +70,7 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Offsets** are Python `str` indices (Unicode code points) into the **original, un-normalised** answer, half-open `[start, end)`. A claim's `text` must equal `answer[start:end]`. Paraphrased claims (e.g. from LLM decomposition in M1) will need a separate field, not a looser check.
   - **Contract:** SUPPORTED and CONTRADICTED claims must name a `best_passage_id`. UNSUPPORTED claims may name one or none. Every passage ID mentioned anywhere must be in `retrieved`.
   - **Retrieval carried forward:** `retrieved` is required, non-empty, with unique IDs and ranks exactly 1..n.
-  - **Score matrix:** `claims[].passage_scores` holds the claim's NLI scores against each retrieved passage (deck slide 17 step 02 / CLAUDE.md §3 row 8). This field is an addition to the §6 example.
+  - **Score matrix:** `claims[].passage_scores` holds the claim's NLI scores against each retrieved passage (deck slide 17 step 02 / CLAUDE.md §3 row 8). This field is an addition to the §6 example. It is **all-or-nothing**: either empty (baselines with no NLI step, e.g. B2–B4) or exactly one row for every retrieved passage, so a partial matrix can't pass as valid. (From the Codex review on PR #8.)
   - **Error types:** `claims[].type` (predicted) and `labels.spans[].type` (gold) use the four-type taxonomy. A SUPPORTED claim cannot carry an error type.
   - **Response label** is `faithful` | `hallucinated`. It must agree with the spans (hallucinated ⇔ ≥1 span). Gold spans may not overlap.
   - `natural` records must name their generator. `injected`/`translated` records may omit it.

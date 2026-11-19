@@ -199,11 +199,36 @@ def _claims_with(**changes):
             ),
             id="score-matrix-unknown-passage",
         ),
+        pytest.param(
+            _claims_with(
+                passage_scores=[
+                    {"passage_id": "hi-p1", "entail": 0.9, "neutral": 0.08, "contradict": 0.02}
+                ]
+            ),
+            id="score-matrix-partial-row",
+        ),
+        pytest.param(
+            _claims_with(
+                passage_scores=[
+                    {"passage_id": "hi-p1", "entail": 0.9, "neutral": 0.08, "contradict": 0.02},
+                    {"passage_id": "hi-p1", "entail": 0.9, "neutral": 0.08, "contradict": 0.02},
+                    {"passage_id": "hi-p2", "entail": 0.1, "neutral": 0.8, "contradict": 0.1},
+                ]
+            ),
+            id="score-matrix-duplicate-row",
+        ),
     ],
 )
 def test_invalid_records_are_rejected(rec):
     with pytest.raises(ValidationError):
         Record.model_validate(rec)
+
+
+def test_claim_without_score_matrix_is_allowed():
+    """Baselines without an NLI step (e.g. token classifiers) emit claims with no matrix."""
+    rec = make_record()
+    rec["claims"][0]["passage_scores"] = []
+    Record.model_validate(rec)
 
 
 def test_contradicted_claim_needs_evidence():

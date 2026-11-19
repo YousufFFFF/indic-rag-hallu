@@ -156,6 +156,8 @@ class Claim(Span):
     verdict: Verdict
     best_passage_id: str | None = None
     scores: NLIScores | None = None
+    # Claim x passage NLI matrix: empty, or exactly one row per retrieved passage
+    # (checked against `retrieved` in Record).
     passage_scores: list[PassageScores] = Field(default_factory=list)
     typed_checks: TypedChecks = Field(default_factory=TypedChecks)
     type: SpanType | None = None
@@ -234,9 +236,17 @@ class Record(_Strict):
                 )
             if c.best_passage_id is not None and c.best_passage_id not in known:
                 raise ValueError(f"claim {i} best_passage_id {c.best_passage_id!r} not retrieved")
-            unknown = {p.passage_id for p in c.passage_scores} - known
+            # Score matrix is all-or-nothing: empty (e.g. baselines with no NLI step), or
+            # one row for EVERY retrieved passage (deck slide 17 step 02).
+            scored = {p.passage_id for p in c.passage_scores}
+            unknown = scored - known
             if unknown:
                 raise ValueError(f"claim {i} scores unknown passages {sorted(unknown)}")
+            missing = known - scored
+            if scored and missing:
+                raise ValueError(
+                    f"claim {i} score matrix is partial: missing passages {sorted(missing)}"
+                )
 
         if self.labels is not None:
             for s in self.labels.spans:
