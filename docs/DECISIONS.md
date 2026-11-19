@@ -52,3 +52,13 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 
   Force-pushes and deleting `main` are blocked. Required approvals are **0** and code-owner review is **not** required, so the maintainer can merge their own PRs. Admins are not forced to follow these rules (`enforce_admins: false`), as an emergency escape hatch.
 - **Consequences:** Every change goes through a PR with green CI. If teammates start opening PRs, raise required approvals to 1 so the maintainer reviews them. History rewrites on `main`, like the one on 2026-11-19, now need protection lifted temporarily.
+
+## D-007 · Language registry; M0 enables Hindi only (2026-11-20)
+
+- **Context:** Deck slide 5 puts nine languages in scope (hi, bn, ta, te, mr, kn, ml, gu, pa), with the final set fixed by corpus availability. M0 is a Hindi vertical slice. Objective 05 needs a resource level per language.
+- **Decision:**
+  - `configs/languages.yaml` lists all nine languages, validated by `indichallu.languages`. Unknown keys are rejected, and IndicTrans2 tags and digit ranges are checked for consistency.
+  - Only `hi` has `enabled: true` for M0.
+  - Each language records its ISO 639-3 code, ISO 15924 script, Unicode block and digit-zero code point, family, IndicTrans2 tag, and IndicQA file. Every Unicode field is checked against Python's `unicodedata` in the tests, not taken on trust.
+  - `resource_level` is left `null`. It will be filled in M1 from a verified, cited source (planned: the Joshi et al. 2020 taxonomy), never estimated.
+- **Consequences:** Turning a language on later is a one-line config change. Analysis code must handle `resource_level` being null until M1.

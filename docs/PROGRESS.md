@@ -13,11 +13,14 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - It then runs `ruff check`, `ruff format --check` and `pytest` in the container. Tests marked `slow`/`gpu` are excluded.
   - Actions are pinned by commit SHA.
   - `actionlint` 1.7.12 reports 0 errors.
-- README CI badge.
+- README CI badge. T02 merged (#6). Branch protection enabled on `main` (DECISIONS D-006).
+- **T03: language registry.** `configs/languages.yaml` covers the 9 deck languages, with Hindi the only one enabled (D-007).
+  - Loader and validation in `src/indichallu/languages.py`.
+  - `tests/test_languages_config.py` checks the config against the deck and against Python's Unicode database: digits, scripts, blocks and endonyms. It also checks that malformed configs are rejected.
+  - 49 tests pass in the container.
 
 **Next**
-- T02 complete: branch protection enabled on `main` (DECISIONS D-006).
-- T03: `configs/languages.yaml`.
+- T04: `data/schema.py` (record schema, JSONL I/O, validation).
 
 ## 2026-11-19
 
@@ -36,5 +39,5 @@ Dated log of what was done, what broke, and what's next. Newest first.
 
 **Next**
 - T02: GitHub Actions CI (CPU pytest + ruff), branch protection on `main`.
-- T03: `configs/languages.yaml`.
+- T04: `data/schema.py` (record schema, JSONL I/O, validation).
 - T00: request IndicNER access; `ollama pull qwen3:4b`.

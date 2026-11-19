@@ -1,0 +1,145 @@
+# Languages in scope: Stage I deck, slide 5 (CLAUDE.md §3 row 1).
+# The final set is fixed by corpus availability; only enabled languages are run.
+#
+# Fields
+#   name / native_name   English name and endonym (endonyms as on deck slide 5)
+#   iso639_3             ISO 639-3 code
+#   script               ISO 15924 script code
+#   unicode_script       Unicode script name as used in character names (e.g. "DEVANAGARI DIGIT ZERO")
+#   unicode_block        [first, last] code point of the script's Unicode block
+#   digit_zero           code point of the script's DIGIT ZERO (digits 0-9 are consecutive)
+#   family               language family
+#   indictrans2_code     IndicTrans2 / FLORES-200 language tag
+#   indicqa_file         file inside ai4bharat/IndicQA (revision pinned in docs/RESOURCES.md)
+#   resource_level       resource class for Objective 05. Left null until filled from a
+#                        verified, cited source (planned: Joshi et al. 2020 taxonomy) in M1.
+#   enabled              included in runs (M0: Hindi only, see docs/DECISIONS.md D-007)
+#
+# Every Unicode field is checked against Python's unicodedata in tests/test_languages_config.py.
+
+languages:
+  hi:
+    name: Hindi
+    native_name: हिन्दी
+    iso639_3: hin
+    script: Deva
+    unicode_script: DEVANAGARI
+    unicode_block: [0x0900, 0x097F]
+    digit_zero: 0x0966
+    family: indo-aryan
+    indictrans2_code: hin_Deva
+    indicqa_file: data/indicqa.hi.json
+    resource_level: null
+    enabled: true
+
+  bn:
+    name: Bengali
+    native_name: বাংলা
+    iso639_3: ben
+    script: Beng
+    unicode_script: BENGALI
+    unicode_block: [0x0980, 0x09FF]
+    digit_zero: 0x09E6
+    family: indo-aryan
+    indictrans2_code: ben_Beng
+    indicqa_file: data/indicqa.bn.json
+    resource_level: null
+    enabled: false
+
+  ta:
+    name: Tamil
+    native_name: தமிழ்
+    iso639_3: tam
+    script: Taml
+    unicode_script: TAMIL
+    unicode_block: [0x0B80, 0x0BFF]
+    digit_zero: 0x0BE6
+    family: dravidian
+    indictrans2_code: tam_Taml
+    indicqa_file: data/indicqa.ta.json
+    resource_level: null
+    enabled: false
+
+  te:
+    name: Telugu
+    native_name: తెలుగు
+    iso639_3: tel
+    script: Telu
+    unicode_script: TELUGU
+    unicode_block: [0x0C00, 0x0C7F]
+    digit_zero: 0x0C66
+    family: dravidian
+    indictrans2_code: tel_Telu
+    indicqa_file: data/indicqa.te.json
+    resource_level: null
+    enabled: false
+
+  mr:
+    name: Marathi
+    native_name: मराठी
+    iso639_3: mar
+    script: Deva
+    unicode_script: DEVANAGARI
+    unicode_block: [0x0900, 0x097F]
+    digit_zero: 0x0966
+    family: indo-aryan
+    indictrans2_code: mar_Deva
+    indicqa_file: data/indicqa.mr.json
+    resource_level: null
+    enabled: false
+
+  kn:
+    name: Kannada
+    native_name: ಕನ್ನಡ
+    iso639_3: kan
+    script: Knda
+    unicode_script: KANNADA
+    unicode_block: [0x0C80, 0x0CFF]
+    digit_zero: 0x0CE6
+    family: dravidian
+    indictrans2_code: kan_Knda
+    indicqa_file: data/indicqa.kn.json
+    resource_level: null
+    enabled: false
+
+  ml:
+    name: Malayalam
+    native_name: മലയാളം
+    iso639_3: mal
+    script: Mlym
+    unicode_script: MALAYALAM
+    unicode_block: [0x0D00, 0x0D7F]
+    digit_zero: 0x0D66
+    family: dravidian
+    indictrans2_code: mal_Mlym
+    indicqa_file: data/indicqa.ml.json
+    resource_level: null
+    enabled: false
+
+  gu:
+    name: Gujarati
+    native_name: ગુજરાતી
+    iso639_3: guj
+    script: Gujr
+    unicode_script: GUJARATI
+    unicode_block: [0x0A80, 0x0AFF]
+    digit_zero: 0x0AE6
+    family: indo-aryan
+    indictrans2_code: guj_Gujr
+    indicqa_file: data/indicqa.gu.json
+    resource_level: null
+    enabled: false
+
+  pa:
+    name: Punjabi
+    native_name: ਪੰਜਾਬੀ
+    iso639_3: pan
+    script: Guru
+    unicode_script: GURMUKHI
+    unicode_block: [0x0A00, 0x0A7F]
+    digit_zero: 0x0A66
+    family: indo-aryan
+    indictrans2_code: pan_Guru
+    indicqa_file: data/indicqa.pa.json
+    resource_level: null
+    enabled: false
