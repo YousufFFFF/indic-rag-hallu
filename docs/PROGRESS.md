@@ -4,6 +4,21 @@ Dated log of what was done, what broke, and what's next. Newest first.
 
 ---
 
+## 2026-11-20
+
+**Done**
+- T01 merged (#5).
+- **T02: CI.** `.github/workflows/ci.yml` runs on every PR and on pushes to `main`.
+  - It builds the same `Dockerfile` used for local development, with the Docker layer cache stored in GitHub Actions.
+  - It then runs `ruff check`, `ruff format --check` and `pytest` in the container. Tests marked `slow`/`gpu` are excluded.
+  - Actions are pinned by commit SHA.
+  - `actionlint` 1.7.12 reports 0 errors.
+- README CI badge.
+
+**Next**
+- Branch protection on `main` (rest of T02), once the `test` check has run on GitHub.
+- T03: `configs/languages.yaml`.
+
 ## 2026-11-19
 
 **Done**
