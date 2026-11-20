@@ -157,9 +157,17 @@ class PassageIndex:
             for leftover in directory.glob(f".CURRENT.{version.name}.tmp"):
                 leftover.unlink(missing_ok=True)
             raise
-        # Keep the new version and the one before it (a reader may be mid-load on it).
-        for old in directory.glob("v-*"):
-            if old.is_dir() and old.name not in (version.name, previous):
+        # Keep the new version, the one before it (a reader may be mid-load on it), and
+        # whatever CURRENT names right now: never delete a published version, even if
+        # another save switched CURRENT after ours. (One pipeline writes an index; this
+        # guard only makes an unexpected second writer harmless, it doesn't serialise.)
+        keep = {version.name, previous}
+        for old in sorted(directory.glob("v-*")):
+            try:
+                keep.add(_read_pointer(directory))
+            except (OSError, ValueError):
+                pass
+            if old.is_dir() and old.name not in keep:
                 shutil.rmtree(old, ignore_errors=True)
         return directory
 

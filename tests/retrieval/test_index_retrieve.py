@@ -277,3 +277,26 @@ def test_broken_version_is_not_retried_forever(tmp_path):
     (_version_dir(d) / "meta.json").write_text("{not json", "utf-8")
     with pytest.raises(ValueError, match="not a readable"):
         PassageIndex.load(d)
+
+
+def test_cleanup_never_deletes_the_version_current_names(tmp_path, monkeypatch):
+    """Codex review on #20: a second writer publishes between our switch and our cleanup;
+    our cleanup must not delete the version CURRENT now names."""
+    from indichallu.retrieval import index as index_module
+
+    d = PassageIndex.build(unit_rows(5, 4, 1), IDS[:5], meta={"model_id": "a"}).save(tmp_path / "i")
+    other = PassageIndex.build(unit_rows(5, 4, 2), IDS[:5], meta={"model_id": "other"})
+    real_pointer = index_module._read_pointer
+    state = {"published": False}
+
+    def pointer_with_concurrent_save(directory):
+        if not state["published"]:  # first pointer read during our cleanup
+            state["published"] = True
+            other.save(directory)  # the other writer publishes now
+        return real_pointer(directory)
+
+    mine = PassageIndex.build(unit_rows(5, 4, 3), IDS[:5], meta={"model_id": "mine"})
+    monkeypatch.setattr(index_module, "_read_pointer", pointer_with_concurrent_save)
+    mine.save(d)
+    monkeypatch.setattr(index_module, "_read_pointer", real_pointer)
+    assert PassageIndex.load(d).meta["model_id"] == "other"  # still loadable
