@@ -192,3 +192,19 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 - **Context:** ZWNJ/ZWJ/NBSP had ended up written literally in 7 source and test files instead of as escapes. Behaviour was unaffected, but they are invisible in an editor and in review, and easy to break by accident.
 - **Decision:** Such characters are written as escapes (`"\u200c"`) or `chr(0x200C)`. `tests/test_source_hygiene.py` fails on any Unicode format character (`Cf`), NBSP or narrow NBSP in `src/`, `tests/`, `configs/`, `docs/`, `scripts/`, the README or CLAUDE.md. I checked it fails when a ZWNJ is planted.
 - **Consequences:** The data itself (`data/`, `results/`) is not scanned; its invisible characters are content.
+
+## D-016 · Pinned, checksum-verified data downloads (2026-11-20)
+
+- **Context:** CLAUDE.md §2 says every run must be reproducible and data is git-ignored, with download scripts committed. IndicQA's loading script is refused by recent `datasets` versions, so its per-language JSON files are fetched directly (§4.4).
+- **Decision:**
+  - **`configs/data/<dataset>.yaml`** records the repo, the **full 40-char revision**, the licence, and for each file its **size and SHA-256** (the Git LFS object id). For IndicQA these were read from the Hugging Face API on 2026-11-20, for all 9 configured languages.
+  - **`indichallu.data.download.fetch()`**:
+    - streams to a temp file while hashing, and moves the file into place only if size and hash match;
+    - on any mismatch or HTTP error, raises and leaves nothing behind;
+    - reuses a valid existing file without network access, and replaces a corrupt one.
+  - Downloads go to `data/raw/<name>/<revision[:12]>/`, versioned on disk and git-ignored.
+  - The User-Agent is generic, with no personal details.
+  - **`scripts/download_indicqa.py`** downloads the *enabled* languages by default (`--lang`, `--all` otherwise).
+  - **Tests** use a local HTTP server, so CI needs no network. A `network`-marked test (excluded by default; `pytest -m network`) checks the real Hindi file against its pin.
+- **Consequences:** A changed upstream file fails loudly instead of silently changing results. New datasets get their own pinned config.
+- **Lesson:** my first, text-sliced reading of the HF tree listing paired each path with the *next* file's size and hash. The pins come from properly parsed JSON. The config test also rejects duplicate hashes, which catches copy-paste mistakes.

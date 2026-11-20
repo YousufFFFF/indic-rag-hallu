@@ -103,10 +103,22 @@ Dated log of what was done, what broke, and what's next. Newest first.
     - 8 token cases, a window, and 150 random partition cases.
 - **Invisible characters:** 7 files had literal ZWNJ/ZWJ/NBSP. They are replaced with escapes, and `tests/test_source_hygiene.py` now guards against it (D-015). A planted ZWNJ is caught.
 - 2,026 tests pass. The text layer (T06–T09) is complete.
+- T09 merged (#14), Codex: no findings.
+- **T10: IndicQA download.**
+  - `configs/data/indicqa.yaml` pins the full revision plus size and SHA-256 for all 9 languages.
+  - `src/indichallu/data/download.py`: a verified, atomic `fetch()`.
+  - `scripts/download_indicqa.py` (D-016).
+  - Real Hindi download: 2,673,518 bytes, SHA-256 matches the pin; a re-run reuses the file. Format is SQuAD-style JSON `{version, data}`.
+  - Tests:
+    - a local HTTP server covers download, reuse, corrupt-file replacement, wrong hash/size (nothing left behind) and HTTP 404;
+    - config checks;
+    - an opt-in `network` test against the real file.
+  - Caught my own misreading of the HF tree listing (sizes and hashes shifted by one file) before pinning anything.
+  - 2,040 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T10: `scripts/download_indicqa.py` (Hindi IndicQA at the pinned revision), then T11–T13 (loader, passage-level split, corpus stats).
+- T11: `data/loaders/indicqa.py` (passages with stable IDs, QA pairs with gold passage, unanswerable flag), then T12 (passage-level split) and T13 (corpus stats).
 
 ## 2026-11-19
 

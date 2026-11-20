@@ -15,7 +15,7 @@ Every model and dataset this project plans to use. **Checked against the Hugging
 
 | HF ID | Role | Revision | Licence | Gated | Size | M0? | Notes |
 |---|---|---|---|---|---|---|---|
-| `ai4bharat/IndicQA` | Hindi (and 10 other langs) contexts + QA pairs → corpus and questions | `d7e91454f5c8` | CC-BY-4.0 | no | repo 0.38 GB; `data/indicqa.hi.json` = 2.67 MB | **yes** | Repo still ships a loading script (`IndicQA.py`). Download `data/indicqa.<lang>.json` directly. Files present for as, bn, gu, hi, kn, ml, mr, or, pa, ta, te, so all nine in-scope languages are covered. |
+| `ai4bharat/IndicQA` | Hindi (and 10 other langs) contexts + QA pairs → corpus and questions | `d7e91454f5c8` (full hash, per-file size and SHA-256 pinned in `configs/data/indicqa.yaml`) | CC-BY-4.0 | no | repo 0.38 GB; `data/indicqa.hi.json` = 2.67 MB | **yes** | Repo still ships a loading script (`IndicQA.py`). Download `data/indicqa.<lang>.json` directly. Files present for as, bn, gu, hi, kn, ml, mr, or, pa, ta, te, so all nine in-scope languages are covered. |
 | `ai4bharat/Indic-Rag-Suite` | Wikipedia-derived RAG triplets: extra corpus/distractors; training pairs (M1) | `72117d48b08e` | MIT | no | repo 8.82 GB (per-language subset smaller, not yet measured) | optional | Use per-language files only. |
 | `ai4bharat/MSMARCO-XI` | IndicMSMarco: retrieval evaluation (M1/M3) | `bf5cdc1f26e5` | ⚠ none declared; card says "refer to the original MS MARCO licence terms" | no | repo **55.6 GB** | no | MS MARCO's terms are research/non-commercial. Fetch the Hindi split only. Never the whole repo. |
 | `Divyanshu/indicxnli` | IndicXNLI: NLI training data for the aligner (C3) | `7092c27872e9` | CC0-1.0 | no | repo 9.12 GB (*repo*) | no | Original IndicXNLI (11 langs). |

@@ -1,0 +1,18 @@
+# IndicQA (ai4bharat/IndicQA), pinned. The repo's loading script is refused by recent
+# `datasets` versions, so the per-language JSON files are downloaded directly
+# (CLAUDE.md §4.4). Sizes and SHA-256 hashes are the Git LFS object ids at this
+# revision, read from the Hugging Face API on 2026-11-20; downloads must match them.
+repo: ai4bharat/IndicQA
+repo_type: dataset
+revision: d7e91454f5c8a85b82e2549453521a2b7a185c44
+licence: CC-BY-4.0
+files:
+  hi: {path: data/indicqa.hi.json, size: 2673518, sha256: 9c91d20e7c095956a097e8d2962c0e4bd7029006f2031e86fc4af16f7fef8cb5}
+  bn: {path: data/indicqa.bn.json, size: 2592245, sha256: a0e65c5b28e90d1912c0ec114eba5fa81aa39cbcf76ec968412c7d77900d666b}
+  ta: {path: data/indicqa.ta.json, size: 2709926, sha256: 247c9e74623f8e73e723f0dabd725c4504b3ca6690c4019c0c6e78f4a7aae77c}
+  te: {path: data/indicqa.te.json, size: 3119401, sha256: 6e32cd280bc4792c9b0852abe6450984a7ba807cb7d1d004df8c9e6eaf33dc6d}
+  mr: {path: data/indicqa.mr.json, size: 2177201, sha256: 03c14357ce3e54bb02f9d0b4a0e531ad687c70f68416cc46400216a3376d9d52}
+  kn: {path: data/indicqa.kn.json, size: 1571913, sha256: 7041d848ac33981008454ba49d1ddc023112ad02955e0ab34135012f61cee33c}
+  ml: {path: data/indicqa.ml.json, size: 2816110, sha256: aebd0ebf2d40ad4625a17194127cefa0e834ba60f85bc01e694a006c51a6f44f}
+  gu: {path: data/indicqa.gu.json, size: 1901951, sha256: 0964fbdb056c1d21942a4332da31a2c70eba7387c327ee604bcae8785b32569f}
+  pa: {path: data/indicqa.pa.json, size: 1857268, sha256: 99a3407f0d59401a24193a94d7fa793ea647adaa4476b3ed9261879810c6a695}
