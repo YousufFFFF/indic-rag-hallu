@@ -125,10 +125,25 @@ Dated log of what was done, what broke, and what's next. Newest first.
     - malformed input;
     - a real-file test (skipped where the data isn't downloaded, e.g. CI).
   - 2,054 tests pass.
+- T11 merged (#16), Codex: no findings.
+- **T12: train/val/test split.** `src/indichallu/data/split.py` + `configs/data/splits.yaml` (D-018).
+  - 60/20/20, seed 13, grouped by article; deterministic through hash ranking.
+  - **The leakage check caught 3 Hindi questions repeated across articles** and landing in different splits. Groups sharing a question are now merged.
+  - Also fixed: plain largest-remainder rounding gave an empty test split for 3 groups.
+  - Hindi: passages 156/52/53, questions 950/282/315, no leakage.
+  - Tests:
+    - exact counts, with no empty split for any n from 0 to 499;
+    - order independence; a pinned assignment;
+    - multi-paragraph articles stay together;
+    - shared questions stay together for 20 seeds;
+    - planted leaks are caught;
+    - config validation;
+    - real-file test (skipped in CI).
+  - 2,075 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T12: `data/split.py` (seeded passage-level train/val/test split + leakage test), then T13 (corpus stats → dataset card).
+- T13: `scripts/corpus_stats.py` → auto-generated per-language stats table in `docs/dataset_card.md`.
 
 ## 2026-11-19
 
