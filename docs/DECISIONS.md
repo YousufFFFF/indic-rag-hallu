@@ -272,3 +272,13 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Disk cache:** keyed by SHA-256 over the config, the kind (query/passage) and the exact length-prefixed inputs. Any config or text change re-embeds. Writes are atomic. **A cached array must pass the same checks as fresh output** (readable, shape, float32, finite, unit length when normalising); otherwise it counts as a miss and is recomputed, never raised or returned (Codex review on PR #19).
   - **Tests:** a deterministic fake encoder in CI; a `slow` test with the real `multilingual-e5-small` (pinned, MIT), run locally: a Hindi query ranks its relevant passage first.
 - **Consequences:** Passage chunking for mE5's 512-token limit is not done in M0. If mE5's numbers suffer from truncation, that is reported, not hidden.
+
+## D-021 · Passage index and top-k retrieval (2026-11-20)
+
+- **Context:** Deck block diagram "Vector Index" and "Top-k Passages"; CLAUDE.md §3 rows 3–4: retrieval scores are logged and carried into every record. The corpus is a few hundred passages per language.
+- **Decision** (`src/indichallu/retrieval/index.py`, `retrieve.py`):
+  - **Exact FAISS `IndexFlatIP`** over L2-normalised embeddings, so inner product = cosine. No approximate search is needed at this size.
+  - **Deterministic results:** hits are sorted by (score desc, corpus position). To keep FAISS's unspecified choice among tied candidates at its cut-off out of the result, it is asked for extra candidates (`max(2k, k+10)`). If a tie still reaches that cut-off, the query is rescored exactly from the stored vectors. A test with 38 identical passages confirms both paths.
+  - **Saved index:** a directory with `index.faiss` (git-ignored), `ids.json` and `meta.json`. The metadata records the embedder name, model id, revision and a passages fingerprint (SHA-256 over length-prefixed id/text pairs). `load()` checks file integrity, size/dim consistency, and any `expect`-ed metadata. Saves are atomic.
+  - **`Retriever`** embeds questions, searches, and returns the schema's own `RetrievedPassage` objects (passage id, text, score, rank 1..k, is_gold). It refuses an index built with a different model or revision than its embedder. `gold_rank()` gives the gold passage's rank or None.
+- **Consequences:** Retrieval metrics (T16) and the analysis of retrieval vs. generation failures read `is_gold` and `rank` straight from records. An index can't silently be paired with the wrong embedder.

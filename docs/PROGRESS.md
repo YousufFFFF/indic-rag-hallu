@@ -158,10 +158,23 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - 16 unit tests with a fake encoder (prefixes, NFC, normalisation, empty input, bad encoder output, cache hits and misses for every config change, key collisions, corrupt cache).
   - Real `multilingual-e5-small` slow test passes locally: a Hindi query ranks its passage first.
   - 2,107 tests pass.
+- T14 merged (#19), after fixing a Codex finding: cached embeddings now get the same checks as fresh ones.
+- **T15: index + retrieval.** `src/indichallu/retrieval/index.py`, `retrieve.py` (D-021).
+  - Exact FAISS inner-product index with deterministic tie-breaking (exact rescoring when a tie reaches FAISS's cut-off).
+  - Atomic save/load with embedder metadata and a passages fingerprint.
+  - `Retriever` returns schema `RetrievedPassage`s with scores, ranks and `is_gold`, and refuses a mismatched embedder.
+  - Tests:
+    - brute-force agreement for k = 1/5/50/80;
+    - ties at the cut-off, with the fallback path confirmed;
+    - validation; save/load round trip, mismatch and damage;
+    - fingerprint;
+    - gold flags and ranks;
+    - results validate inside a `Record`.
+  - 2,127 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T15: `retrieval/index.py` (FAISS build/save/load) + `retrieval/retrieve.py` (top-k with scores, ranks, is_gold), then T16–T18 (retrieval, detection and span metrics).
+- T16: `eval/retrieval.py` (Recall@k, nDCG@k, MRR), T17: `eval/detection.py` (P/R/F1/BA/AUROC), T18: `eval/spans.py` (span F1, token IoU, exact match).
 
 ## 2026-11-19
 
