@@ -248,3 +248,32 @@ def test_retriever_keeps_a_frozen_snapshot_of_the_passages(tmp_path):
     assert hit.text == CORPUS["hi-p0000000002"]
     with pytest.raises(TypeError):
         r.passages["hi-p0000000002"] = "x"  # read-only
+
+
+def test_load_retries_when_a_concurrent_save_removes_its_version(tmp_path, monkeypatch):
+    """Codex review on #20: a reader that read CURRENT and then lost the race against two
+    further saves (its version deleted) must re-read CURRENT and load the new index."""
+    from indichallu.retrieval import index as index_module
+
+    first = PassageIndex.build(unit_rows(5, 4, 1), IDS[:5], meta={"model_id": "v1"})
+    d = first.save(tmp_path / "i")
+    real_read_version = index_module._read_version
+    calls = {"n": 0}
+
+    def racing_read_version(files):
+        calls["n"] += 1
+        if calls["n"] == 1:  # between reading CURRENT and opening files, two saves happen
+            PassageIndex.build(unit_rows(5, 4, 2), IDS[:5], meta={"model_id": "v2"}).save(d)
+            PassageIndex.build(unit_rows(5, 4, 3), IDS[:5], meta={"model_id": "v3"}).save(d)
+        return real_read_version(files)
+
+    monkeypatch.setattr(index_module, "_read_version", racing_read_version)
+    loaded = PassageIndex.load(d)
+    assert loaded.meta["model_id"] == "v3" and calls["n"] == 2
+
+
+def test_broken_version_is_not_retried_forever(tmp_path):
+    d = PassageIndex.build(unit_rows(5, 4), IDS[:5]).save(tmp_path / "i")
+    (_version_dir(d) / "meta.json").write_text("{not json", "utf-8")
+    with pytest.raises(ValueError, match="not a readable"):
+        PassageIndex.load(d)

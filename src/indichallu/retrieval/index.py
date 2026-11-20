@@ -31,6 +31,21 @@ import faiss
 import numpy as np
 
 FORMAT_VERSION = 1
+LOAD_ATTEMPTS = 5  # retries when a concurrent save moves CURRENT during a load
+
+
+def _read_pointer(directory: Path) -> str:
+    version = (directory / "CURRENT").read_text("utf-8").strip()
+    if not version.startswith("v-") or "/" in version or "\\" in version:
+        raise ValueError(f"bad CURRENT pointer {version!r}")
+    return version
+
+
+def _read_version(files: Path) -> tuple[faiss.Index, list[str], dict[str, Any]]:
+    index = faiss.read_index(str(files / "index.faiss"))
+    ids = json.loads((files / "ids.json").read_text("utf-8"))
+    meta = json.loads((files / "meta.json").read_text("utf-8"))
+    return index, ids, meta
 
 
 def passages_fingerprint(passage_ids: list[str], texts: list[str]) -> str:
@@ -153,16 +168,26 @@ class PassageIndex:
         """Load a saved index; ``expect`` lists metadata that must match exactly
         (e.g. the embedder's model id and revision, or the passages fingerprint)."""
         directory = Path(directory)
-        try:
-            version = (directory / "CURRENT").read_text("utf-8").strip()
-            if not version.startswith("v-") or "/" in version or "\\" in version:
-                raise ValueError(f"bad CURRENT pointer {version!r}")
-            files = directory / version
-            index = faiss.read_index(str(files / "index.faiss"))
-            ids = json.loads((files / "ids.json").read_text("utf-8"))
-            meta = json.loads((files / "meta.json").read_text("utf-8"))
-        except (OSError, RuntimeError, ValueError) as e:
-            raise ValueError(f"{directory}: not a readable saved index ({e})") from e
+        # Later saves can remove a version between reading CURRENT and opening its files
+        # (cleanup keeps current + previous). Then CURRENT has moved on: re-read and retry.
+        # Any other failure is a genuinely broken index and is reported at once.
+        for _ in range(LOAD_ATTEMPTS):
+            try:
+                version = _read_pointer(directory)
+            except (OSError, ValueError) as e:
+                raise ValueError(f"{directory}: not a readable saved index ({e})") from e
+            try:
+                index, ids, meta = _read_version(directory / version)
+                break
+            except (OSError, RuntimeError, ValueError) as e:
+                try:
+                    moved = _read_pointer(directory) != version
+                except (OSError, ValueError):
+                    moved = False
+                if not moved:
+                    raise ValueError(f"{directory}: not a readable saved index ({e})") from e
+        else:
+            raise ValueError(f"{directory}: CURRENT kept changing while loading; retry later")
         if meta.get("format_version") != FORMAT_VERSION:
             raise ValueError(f"{directory}: unsupported index format {meta.get('format_version')}")
         if index.d != meta.get("dim") or index.ntotal != meta.get("size"):
