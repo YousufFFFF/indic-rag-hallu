@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from indichallu.data.schema import RetrievedPassage, Split, read_jsonl
 from indichallu.generation.backends import MockBackend
 from indichallu.generation.generate import Generator
@@ -78,3 +80,14 @@ def test_unshown_passages_stay_out_of_the_evidence(tmp_path, monkeypatch):
     assert "अनुच्छेद 3" in prompt and "अनुच्छेद 4" not in prompt
     (row,) = [json.loads(x) for x in (run_dir / "retrieval.jsonl").read_text("utf-8").splitlines()]
     assert row["gold_rank"] == 5 and len(row["hits"]) == 5 and "text" not in row["hits"][0]
+
+
+def test_sample_sizes_must_be_non_negative():
+    mod = load_script()
+    ids = [f"hi-{i}" for i in range(5)]
+    assert len(mod.sample_ids(ids, 2, 13)) == 2 and len(mod.sample_ids(ids, None, 13)) == 5
+    with pytest.raises(ValueError):
+        mod.sample_ids(ids, -1, 13)
+    for bad in ("-1", "0"):
+        with pytest.raises(SystemExit):
+            mod.main(["--sample", bad])

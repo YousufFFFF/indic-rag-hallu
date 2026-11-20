@@ -284,3 +284,13 @@ def test_identical_pairs_are_scored_once():
     aligner.score([CLAIM_1, CLAIM_1], rec.retrieved)
     aligner.score([CLAIM_1], rec.retrieved)
     assert calls == [1]  # one unique (window, claim) pair, scored once
+
+
+@pytest.mark.parametrize("budget", [1, 2, 5, 40, 63, 64, 400])
+def test_any_positive_budget_is_chunked_not_truncated(budget):
+    from indichallu.detection.align import premise_chunk_spans
+
+    spans = premise_chunk_spans(500, budget)
+    assert spans[0][0] == 0 and spans[-1][1] == 500
+    assert all(0 < b - a <= budget for a, b in spans)
+    assert all(b1 >= a2 for (_, b1), (a2, _) in zip(spans, spans[1:], strict=False))  # no gaps
