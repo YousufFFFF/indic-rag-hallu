@@ -43,10 +43,11 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "src"]
 # --doctest-modules: examples in docstrings are executed, so they can't drift from the code.
-addopts = "-ra --strict-markers --doctest-modules -m 'not slow and not gpu'"
+addopts = "-ra --strict-markers --doctest-modules -m 'not slow and not gpu and not network'"
 markers = [
     "slow: downloads or runs real models; excluded by default (run with -m slow)",
     "gpu: needs a CUDA GPU; excluded by default (run with -m gpu)",
+    "network: needs internet access; excluded by default (run with -m network)",
 ]
 
 [tool.ruff]
