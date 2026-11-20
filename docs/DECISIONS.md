@@ -273,6 +273,19 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Tests:** a deterministic fake encoder in CI; a `slow` test with the real `multilingual-e5-small` (pinned, MIT), run locally: a Hindi query ranks its relevant passage first.
 - **Consequences:** Passage chunking for mE5's 512-token limit is not done in M0. If mE5's numbers suffer from truncation, that is reported, not hidden.
 
+## D-021 · Passage index and top-k retrieval (2026-11-20)
+
+- **Context:** Deck block diagram "Vector Index" and "Top-k Passages"; CLAUDE.md §3 rows 3–4: retrieval scores are logged and carried into every record. The corpus is a few hundred passages per language.
+- **Decision** (`src/indichallu/retrieval/index.py`, `retrieve.py`):
+  - **Exact FAISS `IndexFlatIP`** over L2-normalised embeddings, so inner product = cosine. No approximate search is needed at this size.
+  - **Deterministic results:** hits are sorted by (score desc, corpus position). To keep FAISS's unspecified choice among tied candidates at its cut-off out of the result, it is asked for extra candidates (`max(2k, k+10)`). If a tie still reaches that cut-off, the query is rescored exactly from the stored vectors. A test with 38 identical passages confirms both paths.
+  - **Saved index** (saves are serialised by an exclusive OS-level lock on `.save.lock` (`flock` / `msvcrt.locking`), which the OS releases when a writer dies, so there are no stale locks to break; lock-free loads retry if a save removes the version they were about to read; Codex reviews on PR #20): a directory of versioned subdirectories `v-*/` (`index.faiss`, git-ignored; `ids.json`; `meta.json`) plus a `CURRENT` file naming the active one. Saving writes a complete new version, then switches `CURRENT` with **one atomic file replace**, so a crash leaves the previous index loadable and readers never see a missing or half-written index. The previous version is kept for in-flight readers. The metadata records the embedder name, model id, revision and a passages fingerprint (SHA-256 over length-prefixed id/text pairs). `load()` checks the pointer, file integrity, size/dim consistency and any `expect`-ed metadata. (Codex review on PR #20: the first version deleted the old index before installing the new one.)
+  - **`Retriever`** embeds questions, searches, and returns the schema's own `RetrievedPassage` objects (passage id, text, score, rank 1..k, is_gold). `gold_rank()` gives the gold passage's rank or None. It accepts only a consistent triple (Codex review on PR #20):
+    - the embedder must **normalise** (inner product = cosine only for unit vectors);
+    - the index records the **full embedder config** (model, revision, prefixes, max length, normalisation: everything that changes the vectors), and it must match exactly;
+    - the passage texts must reproduce the stored **passages fingerprint**, so the same ids with changed text are rejected and evidence attribution can't point at text the vectors weren't built from. A **read-only snapshot** of those texts is kept, so later edits to the caller's mapping change nothing.
+- **Consequences:** Retrieval metrics (T16) and the analysis of retrieval vs. generation failures read `is_gold` and `rank` straight from records. An index can't silently be paired with the wrong embedder.
+
 ## D-022 · Evaluation metrics (2026-11-20)
 
 - **Context:** Deck slide 21; CLAUDE.md §3 rows 13–16. Every metric is reported per language and pooled, and the positive class (hallucinated) is the minority.
