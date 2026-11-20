@@ -74,10 +74,25 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - Second Codex finding (on #12): a fixed band missed cumulative drift (33 ZWNJs + 33 `ऩ` mapped output into the deleted ZWNJs). Fixed with provably optimal band doubling, related-character substitution cost 1, and per-substitution chunking. Regression tests: drift up to 200 chars; band doubling equals unbanded cost on 60 random cases.
   - Third Codex finding (on #12): band doubling could allocate a dense grid of hundreds of MB on pathological drift. Fixed: two rolling cost rows plus 1-byte backpointers, and a 2M-cell work budget with a coarse-but-safe fallback (exact up to 300-char drift; at most 2.7 s and < 3 MB at 20k chars). Tests: a spy asserts no pass exceeds the budget; the forced fallback is safe; moderate drift stays exact.
   - 1,321 tests pass.
+- Follow-up #12 merged; Codex: no findings on the final commit.
+- **T08: Indic digits.** `src/indichallu/text/numerals.py` (D-013).
+  - `to_ascii_digits()` converts each native decimal digit to ASCII with an exact 1:1 offset map. It covers the 8 configured digit blocks, or every `Nd` digit with `scope="all"`.
+  - `has_native_digits()`.
+  - `normalize(..., ascii_digits=True)` chains it after NFC → IndicNLP.
+  - Tests cover:
+    - Devanagari / Bengali / Tamil / Telugu years mapping back digit by digit;
+    - all 9 languages;
+    - the table checked against `unicodedata.digit`;
+    - non-decimal Tamil numerals left alone;
+    - `scope="all"`;
+    - 100 random strings;
+    - the slide-17 answer with `२१`, ZWNJ and `|` through the full pipeline back to the original;
+    - the full pipeline in every language.
+  - 1,451 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T08: `text/numerals.py` (Indic digits → ASCII with offsets, all 8 digit blocks), then T09: `text/sentseg.py` (sentence segmentation with offsets).
+- T09: `text/sentseg.py` (sentence segmentation + tokens with original offsets).
 
 ## 2026-11-19
 

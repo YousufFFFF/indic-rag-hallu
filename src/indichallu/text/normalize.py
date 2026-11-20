@@ -323,11 +323,28 @@ def indicnlp_normalize(text: str, lang: str, **options: object) -> Normalized:
 # --- full pipeline ---------------------------------------------------------------------
 
 
-def normalize(text: str, lang: str, *, indicnlp: bool = True, **options: object) -> Normalized:
-    """NFC, then (by default) IndicNLP normalisation; offsets map back to ``text``."""
+def normalize(
+    text: str,
+    lang: str,
+    *,
+    indicnlp: bool = True,
+    ascii_digits: bool = False,
+    **options: object,
+) -> Normalized:
+    """NFC, then (by default) IndicNLP, then (optionally) Indic digits -> ASCII.
+
+    Offsets always map back to ``text``. ``ascii_digits`` is off by default so the
+    pipeline's output stays in the source script; matching code turns it on
+    (DECISIONS D-013).
+    """
     _check_lang(lang)
-    step1 = nfc(text)
-    if not indicnlp:
-        return step1
-    step2 = indicnlp_normalize(step1.text, lang, **options)
-    return Normalized(step2.text, step1.offsets.then(step2.offsets))
+    result = nfc(text)
+    if indicnlp:
+        step = indicnlp_normalize(result.text, lang, **options)
+        result = Normalized(step.text, result.offsets.then(step.offsets))
+    if ascii_digits:
+        from indichallu.text.numerals import to_ascii_digits  # avoids an import cycle
+
+        step = to_ascii_digits(result.text)
+        result = Normalized(step.text, result.offsets.then(step.offsets))
+    return result
