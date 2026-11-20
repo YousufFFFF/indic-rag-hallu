@@ -227,3 +227,20 @@ def test_cache_survives_a_line_torn_mid_character(tmp_path):
         f.write(torn[: torn.index("सरकार".encode()) + 2])  # stops inside a 3-byte character
     reloaded = GenerationCache(path)
     assert len(reloaded) == 1 and reloaded.get("k1")["generation"]["text"] == "राज्य"
+
+
+def test_unverified_cache_entries_are_not_replayed_as_pinned_output(tmp_path):
+    """Codex review on #23: an Ollama cache entry counts only if its weights were verified
+    against the pinned digest when it was written."""
+    pinned = cfg(backend="ollama")
+    legacy = MockBackend(lambda p: "पुराना")  # e.g. written before the digest check
+    Generator(pinned, legacy, cache_dir=tmp_path).generate("प्रश्न")
+
+    verified = MockBackend(lambda p: "नया")
+    verified.verified_digest = pinned.ollama_digest
+    gen, cached = Generator(pinned, verified, cache_dir=tmp_path).generate("प्रश्न")
+    assert not cached and gen.text == "नया" and len(verified.calls) == 1
+
+    offline = MockBackend()  # a later replay: the verified entry is reused, no new call
+    gen, cached = Generator(pinned, offline, cache_dir=tmp_path).generate("प्रश्न")
+    assert cached and gen.text == "नया" and offline.calls == []
