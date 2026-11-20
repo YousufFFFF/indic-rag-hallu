@@ -307,11 +307,12 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 
 - **Context:** Deck slide 15 / CLAUDE.md §3 rows 5–6: the prompt is query + retrieved context in the source language; one LLM under fixed decoding; outputs cached and never recomputed.
 - **Decision** (`src/indichallu/generation/`, `configs/generation/m0.yaml`):
-  - **Generator** `qwen3:4b` via Ollama, pinned by its **Ollama manifest digest** (`359d7dd4…`) plus the HF source revision (`Qwen/Qwen3-4B@1cfa9a72…`, Apache-2.0).
+  - **Generator** `qwen3:4b-instruct-2507-q4_K_M` via Ollama, pinned by its **Ollama digest** (`0edcdef3…`) plus the HF source `Qwen/Qwen3-4B-Instruct-2507@cdbee75f…` (Apache-2.0, ungated).
+  - **Correction (found while testing):** the Ollama tag `qwen3:4b` first chosen in D-003 is **Qwen3-4B-Thinking-2507**: its model layer is identical to `qwen3:4b-thinking-2507-q4_K_M`, and Ollama reports `finetune: Thinking`. It always writes (English) reasoning as its answer, even with `think: false` or a `/no_think` system message, so the answers were unusable. The `hf_source` first recorded (`Qwen/Qwen3-4B`) was also wrong. Switched to the non-thinking Instruct-2507 build of the same size and licence, which answers directly in Hindi.
   - **Fixed decoding:** temperature 0, top_p 1, seed 0, max 256 new tokens, `num_ctx` 8192, **thinking off** (`think: false`, plus a defensive strip of any `<think>` block).
-  - **Context:** the top 3 retrieved passages.
+  - **Context:** the top 3 retrieved passages. A record's `retrieved` holds **exactly these prompt passages** (scores, ranks, is_gold kept), so detection and annotation never credit evidence the model was not shown; the full top-k ranking goes to `retrieval.jsonl` in the same run for retrieval metrics (Codex review on #22).
   - **Backends:** native Ollama `/api/chat` (it supports `think: false`; sends UTF-8 JSON), OpenAI-compatible (for vLLM on the T4), and a mock. The 4-bit HF backend (and logits for B4) comes in M1.
-  - **Hindi prompt** (`generation/prompts/hi.txt`): answer only from the passages, in Hindi, in one or two sentences; otherwise reply with the exact sentence "दिए गए अनुच्छेदों में इस प्रश्न का उत्तर नहीं है।". Passages are numbered `[1]..[k]` in rank order. Placeholders are filled in **one regex pass over the template**: chained `str.replace` would rewrite a `{question}` occurring inside passage text (caught by a test). **Pending native-speaker review (T22).**
+  - **Hindi prompt** (`generation/prompts/hi.txt`): answer only from the passages, in Hindi, in one or two sentences; otherwise reply with the exact sentence "दिए गए अनुच्छेदों में इस प्रश्न का उत्तर नहीं है।". Passages are numbered `[1]..[k]` in rank order. Placeholders are filled in **one regex pass over the template**: chained `str.replace` would rewrite a `{question}` occurring inside passage text (caught by a test). **Reviewed and approved by the maintainer, a native Hindi speaker, on 2026-11-20 (T22).**
   - **Cache:** append-only JSONL keyed by SHA-256 over (backend, model, digest/revision, decoding, prompt), fsync'd per entry. A torn last line is ignored. Runs resume where they stopped.
 - **Hardware finding:** Ollama does **not** detect the laptop's GTX 1650 Ti ("inference compute … cpu", total VRAM 0 B), so `qwen3:4b` runs 100% on the CPU at about 6.5 tokens/s; a 3-passage Hindi prompt takes several minutes. M0 therefore generates a **seeded 60-question test sample** on the CPU (user's choice). The full set runs on the T4 in M1.
 
@@ -325,7 +326,9 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 
     Claims are spans of the original answer. Other languages fall back to sentences until they get rules. An LLM-based decomposer is an M1 option.
   - **Align:** each claim against **every** retrieved passage with `MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7@b5113eb3…` (MIT). The label order is read from the model config.
-    - Passages longer than 512 tokens would be truncated, so each passage is scored in **windows of up to 3 consecutive sentences**, and the passage gets its most decisive window (highest max(entail, contradict)).
+    - Passages longer than 512 tokens would be truncated, so each passage is scored in **windows of up to 3 consecutive sentences, starting every 2 sentences** (stride 2; the last window always reaches the final sentence, and every pair of adjacent sentences shares a window). The passage gets its most decisive window (highest max(entail, contradict)). Stride 2 roughly halves NLI calls versus stride 1.
+    - **Token budget:** a window that still exceeds 512 tokens together with the claim (very long sentences) is split into token chunks that fit `512 − claim tokens − special tokens`, overlapping by 32 tokens; the most decisive chunk wins. No evidence is silently truncated (Codex review on #23).
+    - Identical (window, claim) pairs are scored once per run (in-memory cache).
     - Premise and hypothesis both go through NFC → IndicNLP → ASCII digits.
     - The full claim × passage matrix is stored on every claim.
   - **Aggregate:** SUPPORTED if max entailment ≥ τₑ (evidence = that passage); else CONTRADICTED if max contradiction ≥ τ꜀; else UNSUPPORTED (closest passage kept for reference). The starting τₑ = τ꜀ = 0.5 come from config.

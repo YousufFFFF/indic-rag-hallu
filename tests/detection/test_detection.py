@@ -230,3 +230,57 @@ def test_worked_example_with_the_real_nli_model():
     print({c.text: (c.verdict.value, c.scores.model_dump(), c.type) for c in out.claims})
     assert c1.verdict is Verdict.SUPPORTED
     assert c2.verdict is Verdict.UNSUPPORTED and c2.type is SpanType.NUMERICAL
+
+
+# --- review fixes on #23 ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("n", "size", "overlap"), [(10, 4, 1), (100, 30, 8), (31, 30, 8), (5, 30, 8)]
+)
+def test_chunks_cover_every_token_within_budget(n, size, overlap):
+    from indichallu.detection.align import chunk_spans
+
+    spans = chunk_spans(n, size, overlap)
+    assert spans[0][0] == 0 and spans[-1][1] == n
+    assert all(0 < b - a <= size for a, b in spans)
+    covered = set()
+    for a, b in spans:
+        covered |= set(range(a, b))
+    assert covered == set(range(n))
+    for (_, b1), (a2, _) in zip(spans, spans[1:], strict=False):
+        assert b1 - a2 == overlap  # consecutive chunks overlap exactly
+    with pytest.raises(ValueError):
+        chunk_spans(10, 4, 4)
+
+
+def test_most_decisive_piece_wins_per_original_pair():
+    from indichallu.detection.align import reduce_most_decisive
+
+    probs = np.array([[0.2, 0.7, 0.1], [0.9, 0.1, 0.0], [0.1, 0.2, 0.7], [0.3, 0.6, 0.1]])
+    out = reduce_most_decisive(probs, owner=[0, 0, 1, 1], n=2)
+    assert out[0].tolist() == [0.9, 0.1, 0.0] and out[1].tolist() == [0.1, 0.2, 0.7]
+
+
+def test_window_stride_keeps_adjacent_sentences_together_and_reaches_the_end():
+    text = " ".join(f"वाक्य {i} है।" for i in range(8))
+    w1 = premise_windows(text, "hi", 3, stride=1)
+    w2 = premise_windows(text, "hi", 3, stride=2)
+    assert len(w1) == 6 and len(w2) == 4  # starts 0,2,4 + the final window at 5
+    assert w2[-1] == w1[-1]  # the last sentences are always covered
+    for i in range(7):  # every adjacent pair shares a stride-2 window
+        assert any(f"वाक्य {i} है। वाक्य {i + 1} है।" in w for w in w2)
+    with pytest.raises(ValueError):
+        premise_windows(text, "hi", 3, stride=4)
+
+
+def test_identical_pairs_are_scored_once():
+    nli = OverlapNLI()
+    calls = []
+    real = nli.predict
+    nli.predict = lambda pairs: calls.append(len(pairs)) or real(pairs)
+    aligner = Aligner(nli, "hi")
+    rec = record()
+    aligner.score([CLAIM_1, CLAIM_1], rec.retrieved)
+    aligner.score([CLAIM_1], rec.retrieved)
+    assert calls == [1]  # one unique (window, claim) pair, scored once

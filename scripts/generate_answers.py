@@ -2,11 +2,15 @@
 
     python scripts/generate_answers.py --lang hi --split test --sample 60 --embedder me5-small
 
-For each question: retrieve the top-k passages from the whole language corpus (scores,
-ranks and is_gold kept), build the source-language prompt from the top
-``context_passages`` of them, and generate an answer under the fixed decoding config
-(``configs/generation/m0.yaml``), with every generation cached. Writes schema-valid
-records (``source: natural``, no claims or labels yet) to ``results/runs/<run_id>/``.
+For each question: retrieve the top-k passages from the whole language corpus, build the
+source-language prompt from the top ``context_passages`` of them, and generate an answer
+under the fixed decoding config (``configs/generation/m0.yaml``), with every generation
+cached. Writes to ``results/runs/<run_id>/``:
+
+* ``records.jsonl``: schema-valid records (``source: natural``, no claims or labels yet)
+  whose ``retrieved`` is exactly the evidence the generator was shown (scores, ranks and
+  is_gold kept), so detection and annotation never credit a passage the model never saw;
+* ``retrieval.jsonl``: the full top-k ranking per question, for retrieval metrics.
 
 ``--sample N`` takes a deterministic sample: questions ranked by sha256("<seed>:<qa_id>").
 """
@@ -15,12 +19,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import sys
 import time
+from collections.abc import Sequence
 
 from indichallu.data.download import load_pinned_dataset, verified_local_path
 from indichallu.data.loaders.indicqa import load_indicqa
-from indichallu.data.schema import Record, Split, write_jsonl
+from indichallu.data.schema import Record, RetrievedPassage, Split, write_jsonl
 from indichallu.data.split import split_dataset
 from indichallu.generation.generate import Generator, load_generator_config
 from indichallu.generation.prompts import build_prompt
@@ -34,6 +40,16 @@ EMBEDDING_CACHE = REPO_ROOT / "data" / "interim" / "embeddings"  # git-ignored
 def sample_ids(ids: list[str], n: int | None, seed: int) -> list[str]:
     ranked = sorted(ids, key=lambda i: hashlib.sha256(f"{seed}:{i}".encode()).hexdigest())
     return ranked if n is None else ranked[:n]
+
+
+def retrieval_row(qa_id: str, gold_passage_id: str, hits: Sequence[RetrievedPassage]) -> dict:
+    """One line of retrieval.jsonl: the full top-k ranking for a question."""
+    return {
+        "id": qa_id,
+        "gold_passage_id": gold_passage_id,
+        "gold_rank": gold_rank(hits),
+        "hits": [h.model_dump(mode="json", exclude={"text"}) for h in hits],
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -92,9 +108,11 @@ def main(argv: list[str] | None = None) -> int:
             gold_passage_ids=[q.gold_passage_id for q in chosen],
         )
         generator = Generator(gen_cfg)
-        records = []
+        records, rankings = [], []
         for i, (q, hits) in enumerate(zip(chosen, retrieved, strict=True), start=1):
-            prompt = build_prompt(args.lang, q.question, hits[: gen_cfg.context_passages])
+            evidence = hits[: gen_cfg.context_passages]  # exactly what the model is shown
+            prompt = build_prompt(args.lang, q.question, evidence)
+            rankings.append(retrieval_row(q.qa_id, q.gold_passage_id, hits))
             start = time.perf_counter()
             gen, cached = generator.generate(prompt)
             records.append(
@@ -104,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
                     split=args.split,
                     source="natural",
                     question=q.question,
-                    retrieved=hits,
+                    retrieved=evidence,
                     generator=gen_cfg.record_info(),
                     answer=gen.text,
                 )
@@ -116,6 +134,9 @@ def main(argv: list[str] | None = None) -> int:
                 flush=True,
             )
         write_jsonl(records, run.path("records.jsonl"))
+        with run.path("retrieval.jsonl").open("w", encoding="utf-8") as f:
+            for row in rankings:
+                print(json.dumps(row, ensure_ascii=False), file=f)
         print(f"wrote {len(records)} records to {run.dir}", flush=True)
     return 0
 
