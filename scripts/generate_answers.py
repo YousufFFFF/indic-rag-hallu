@@ -38,6 +38,8 @@ EMBEDDING_CACHE = REPO_ROOT / "data" / "interim" / "embeddings"  # git-ignored
 
 
 def sample_ids(ids: list[str], n: int | None, seed: int) -> list[str]:
+    if n is not None and n < 0:
+        raise ValueError(f"sample size must be >= 0, got {n}")
     ranked = sorted(ids, key=lambda i: hashlib.sha256(f"{seed}:{i}".encode()).hexdigest())
     return ranked if n is None else ranked[:n]
 
@@ -64,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--name", default="generate")
     args = p.parse_args(argv)
 
+    if args.sample is not None and args.sample < 1:
+        p.error("--sample must be a positive number of questions")
     gen_cfg = load_generator_config(args.generator)
     if gen_cfg.context_passages > args.k:
         p.error("--k must be >= the generator's context_passages")
