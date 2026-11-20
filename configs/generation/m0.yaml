@@ -1,0 +1,17 @@
+# M0 generator (DECISIONS D-003, D-023). Fixed decoding: every M0 answer uses exactly this.
+backend: ollama                      # native Ollama /api/chat (supports think: false)
+model: "qwen3:4b"
+ollama_digest: 359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7
+hf_source: Qwen/Qwen3-4B
+hf_revision: 1cfa9a7208912126459214e8b04321603b3df60c
+licence: Apache-2.0
+base_url_env: OLLAMA_BASE_URL        # http://host.docker.internal:11434/v1 in the dev container
+prompt_template: hi                  # src/indichallu/generation/prompts/hi.txt
+context_passages: 3                  # top-k retrieved passages put in the prompt
+decoding:
+  temperature: 0.0
+  top_p: 1.0
+  seed: 0
+  max_new_tokens: 256
+  num_ctx: 8192                      # 3 passages of IndicQA length fit; Ollama's default (4096) may not
+  think: false                       # Qwen3 thinking mode off

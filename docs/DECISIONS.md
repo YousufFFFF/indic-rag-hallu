@@ -285,3 +285,15 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
     - the index records the **full embedder config** (model, revision, prefixes, max length, normalisation: everything that changes the vectors), and it must match exactly;
     - the passage texts must reproduce the stored **passages fingerprint**, so the same ids with changed text are rejected and evidence attribution can't point at text the vectors weren't built from. A **read-only snapshot** of those texts is kept, so later edits to the caller's mapping change nothing.
 - **Consequences:** Retrieval metrics (T16) and the analysis of retrieval vs. generation failures read `is_gold` and `rank` straight from records. An index can't silently be paired with the wrong embedder.
+
+## D-023 · Generation: backends, Hindi prompt, cache (2026-11-20)
+
+- **Context:** Deck slide 15 / CLAUDE.md §3 rows 5–6: the prompt is query + retrieved context in the source language; one LLM under fixed decoding; outputs cached and never recomputed.
+- **Decision** (`src/indichallu/generation/`, `configs/generation/m0.yaml`):
+  - **Generator** `qwen3:4b` via Ollama, pinned by its **Ollama manifest digest** (`359d7dd4…`) plus the HF source revision (`Qwen/Qwen3-4B@1cfa9a72…`, Apache-2.0).
+  - **Fixed decoding:** temperature 0, top_p 1, seed 0, max 256 new tokens, `num_ctx` 8192, **thinking off** (`think: false`, plus a defensive strip of any `<think>` block).
+  - **Context:** the top 3 retrieved passages.
+  - **Backends:** native Ollama `/api/chat` (it supports `think: false`; sends UTF-8 JSON), OpenAI-compatible (for vLLM on the T4), and a mock. The 4-bit HF backend (and logits for B4) comes in M1.
+  - **Hindi prompt** (`generation/prompts/hi.txt`): answer only from the passages, in Hindi, in one or two sentences; otherwise reply with the exact sentence "दिए गए अनुच्छेदों में इस प्रश्न का उत्तर नहीं है।". Passages are numbered `[1]..[k]` in rank order. Placeholders are filled in **one regex pass over the template**: chained `str.replace` would rewrite a `{question}` occurring inside passage text (caught by a test). **Pending native-speaker review (T22).**
+  - **Cache:** append-only JSONL keyed by SHA-256 over (backend, model, digest/revision, decoding, prompt), fsync'd per entry. A torn last line is ignored. Runs resume where they stopped.
+- **Hardware finding:** Ollama does **not** detect the laptop's GTX 1650 Ti ("inference compute … cpu", total VRAM 0 B), so `qwen3:4b` runs 100% on the CPU at about 6.5 tokens/s; a 3-passage Hindi prompt takes several minutes. M0 therefore generates a **seeded 60-question test sample** on the CPU (user's choice). The full set runs on the T4 in M1.
