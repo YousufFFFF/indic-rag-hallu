@@ -16,7 +16,7 @@ from indichallu.text.normalize import (
 )
 from indichallu.text.offsets import OffsetMapBuilder
 
-ZWNJ, ZWJ, NBSP = "‌", "‍", " "
+ZWNJ, ZWJ, NBSP = "\u200c", "\u200d", "\u00a0"
 LANGS = load_languages()
 
 # --- NFC -------------------------------------------------------------------------------

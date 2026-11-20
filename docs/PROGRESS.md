@@ -89,10 +89,24 @@ Dated log of what was done, what broke, and what's next. Newest first.
     - the slide-17 answer with `२१`, ZWNJ and `|` through the full pipeline back to the original;
     - the full pipeline in every language.
   - 1,451 tests pass.
+- T08 merged (#13), after fixing a Codex finding (scope validation in `has_native_digits`).
+- **T09: sentences and tokens.** `src/indichallu/text/sentseg.py` (D-014).
+  - **Found that IndicNLP's `sentence_split` silently drops text** (6 of 19 chars kept on one input). Replaced its boundary logic with our own, keeping its delimiter choice and abbreviation list. Cut positions are mapped back, so sentences partition the original exactly.
+  - `tokens()`: a Unicode-category tokenizer with absolute offsets. Indic words stay whole; Indian-grouped numbers are one token.
+  - Tests:
+    - 11 rule cases;
+    - a regression on the exact input IndicNLP loses text on;
+    - 200 random "never lose text" cases;
+    - 150 random cases of agreement with IndicNLP where it is lossless;
+    - an edge-ZWNJ case;
+    - all 9 languages;
+    - 8 token cases, a window, and 150 random partition cases.
+- **Invisible characters:** 7 files had literal ZWNJ/ZWJ/NBSP. They are replaced with escapes, and `tests/test_source_hygiene.py` now guards against it (D-015). A planted ZWNJ is caught.
+- 2,026 tests pass. The text layer (T06–T09) is complete.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T09: `text/sentseg.py` (sentence segmentation + tokens with original offsets).
+- T10: `scripts/download_indicqa.py` (Hindi IndicQA at the pinned revision), then T11–T13 (loader, passage-level split, corpus stats).
 
 ## 2026-11-19
 

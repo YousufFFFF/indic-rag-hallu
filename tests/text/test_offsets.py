@@ -6,7 +6,7 @@ import pytest
 
 from indichallu.text.offsets import OffsetMap, OffsetMapBuilder, compose
 
-ZWNJ = "‌"
+ZWNJ = "\u200c"
 
 
 def digits_to_ascii(text: str, zero: int) -> OffsetMap:
@@ -123,7 +123,7 @@ def test_empty_and_fully_deleted_strings():
 
 def test_compose_digits_then_deletion_points_to_original():
     original = f"आयु २१{ZWNJ} वर्ष"
-    m1 = digits_to_ascii(original, 0x0966)  # "आयु 21‌ वर्ष"
+    m1 = digits_to_ascii(original, 0x0966)  # "आयु 21\u200c वर्ष"
     b = OffsetMapBuilder(m1.target)
     for ch in m1.target:
         b.delete() if ch == ZWNJ else b.copy()

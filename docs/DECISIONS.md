@@ -163,3 +163,32 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Non-decimal numerals are not converted** (Tamil `௰` 10, `௱` 100, `௲` 1000; Bengali currency numerators). They are not positional digits, so a 1:1 swap would change the value. Parsing them is the typed NUMERICAL verifier's job (C2, M1).
   - `normalize(..., ascii_digits=True)` chains this after NFC → IndicNLP with one composed map. It is **off by default** so the pipeline's output stays in the source script; matching and detection configs turn it on.
 - **Consequences:** Digit grouping and number parsing (Indian `1,00,000`, decimals, mixed scripts) are out of scope here and belong to the typed verifier.
+
+## D-014 · Sentence segmentation and tokens (2026-11-20)
+
+- **Context:** Claim decomposition (T24) and Token IoU (D82) need sentences and tokens with offsets into the original text (CLAUDE.md §3 rows 2, 7, 14).
+  - IndicNLP's `sentence_split` returns strings without offsets.
+  - Its period-merging pass **silently drops text**: on one input it kept 6 of 19 non-space characters. Even `'क. ख. डॉ. ग आया.'` is merged with a stray leading space.
+  - It also never splits on `।`, `?` or `!` right after a digit (`आयु 21। अब` stays one sentence), and splits `क?!` into `क?` and `!`.
+- **Decision** (`src/indichallu/text/sentseg.py`):
+  - **Sentences:** we keep IndicNLP's *delimiter choice* (for hi/bn/pa text containing a danda only `? ! । ॥` end sentences, otherwise `.` too) and its *abbreviation list* (`is_acronym_abbvr`), but use our own boundary logic. Boundaries are found on the normalised text (so `|` typed for a danda works). The **cut positions** are mapped back and the original is split there, so sentences **partition the original**: no text is ever lost. A piece made only of characters normalisation deletes (e.g. an edge ZWNJ) is merged into a neighbour.
+  - **Rules:**
+    - `.` does not end a sentence after a digit (`21.`, `3.5`), after a listed abbreviation (`डॉ`, `श्री`, …) or after a single *bare* letter (initials `क.`, `A.`). Letters with vowel signs are excluded on purpose: `है.` and `में.` do end sentences.
+    - Other delimiters after digits do split.
+    - Runs of delimiters and closing quotes/brackets stay with their sentence.
+    - IndicNLP's "a one-word sentence glues its neighbours" heuristic is not reproduced, because it is where the text loss happens.
+  - **Tokens:** our own tokenizer on the original text, by Unicode category.
+    - A word is a run of letters, marks, digits and ZWJ/ZWNJ. Python's `\w` would split at vowel signs and viramas.
+    - A number keeps `,`/`.` between digits (`1,00,000.50`, `२,५००.७५`).
+    - Every other non-space char is its own token.
+    - `tokens(text, start, end)` returns absolute offsets for a window (e.g. a claim span).
+- **Consequences:**
+  - Where IndicNLP is lossless (danda text, no digits or repeated delimiters), our sentences equal its output; a test checks this.
+  - Elsewhere they differ by the rules above, which are documented and tested.
+  - Initials whose letter carries a vowel sign (`पी.`) do split.
+
+## D-015 · No literal invisible characters in source (2026-11-20)
+
+- **Context:** ZWNJ/ZWJ/NBSP had ended up written literally in 7 source and test files instead of as escapes. Behaviour was unaffected, but they are invisible in an editor and in review, and easy to break by accident.
+- **Decision:** Such characters are written as escapes (`"\u200c"`) or `chr(0x200C)`. `tests/test_source_hygiene.py` fails on any Unicode format character (`Cf`), NBSP or narrow NBSP in `src/`, `tests/`, `configs/`, `docs/`, `scripts/`, the README or CLAUDE.md. I checked it fails when a ZWNJ is planted.
+- **Consequences:** The data itself (`data/`, `results/`) is not scanned; its invisible characters are content.
