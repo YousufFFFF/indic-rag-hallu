@@ -339,3 +339,19 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - The CI version uses a deterministic lexical stand-in.
   - **With the real mDeBERTa model the worked example passes:** claim 1 SUPPORTED (entail 0.79); claim 2 UNSUPPORTED (neutral 0.9996), type NUMERICAL, offsets on the age clause.
 - **Consequences:** M0 uses no IndicNER, so per-type results cover NUMERICAL and TEMPORAL only. The tuned thresholds and test results are recorded from the pilot run (T34/T35).
+
+## D-025 · M0 pilot set and evaluation protocol (2026-11-20)
+
+- **Context:** M0 needs a labelled Hindi set to compare our detector with baseline B1 (CLAUDE.md §7 M0: "small typed-injection set for Hindi (auto-labelled) → pilot evaluation of B1 vs ours"). Natural generations are too slow on this laptop (D-023), and a human gold set is M2 work.
+- **Decision** (`src/indichallu/data/synth/`, `scripts/run_pilot_eval.py`):
+  - **Faithful answer:** the gold-passage sentence containing the verified answer span (D-017), verbatim. **Hallucinated answer:** the same sentence with one injected error and its exact span and type:
+    - TEMPORAL: a year shifted by 1–30, or a Hindi month swapped;
+    - NUMERICAL: a non-year integer changed, written in the same digit script.
+
+    Numbers with separators are not injected. Each question gives one faithful and one hallucinated record (balanced), with the injected type alternating where both apply.
+  - **Evidence:** the question's retrieved top 3 (the generator's context size). Questions whose gold passage isn't in it are skipped and counted, because the labels must be true *relative to the retrieved evidence*.
+  - Only val and test questions are used, with the passage-level split (D-018). Our detector's and B1's thresholds are each **tuned on val only** (D-024), then applied once to test.
+  - **Retrieval metrics** are on *all* Hindi test questions (not just the pilot ones), top 10 over the whole 261-passage corpus.
+  - **Embedder:** `intfloat/multilingual-e5-small` as a **labelled stand-in**, since bge-m3 and mE5-large downloads were not approved (D-020; RESOURCES).
+  - **Output:** a run folder plus `results/m0/pilot.json` (committed), the only source of the README's M0 table (`scripts/make_tables.py --check` is tested in CI).
+- **Known bias (stated with every number):** faithful answers are verbatim passage sentences (easy to entail); errors are single-token edits; only NUMERICAL/TEMPORAL (ENTITY/LOCATION need IndicNER, M1). These numbers show that the pipeline works end to end and how decomposition compares with sentence-level NLI on controlled errors. **They are not a measure of real-world hallucination detection;** that needs the human gold set (M2).
