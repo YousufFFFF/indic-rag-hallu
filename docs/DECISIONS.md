@@ -286,17 +286,6 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
     - the passage texts must reproduce the stored **passages fingerprint**, so the same ids with changed text are rejected and evidence attribution can't point at text the vectors weren't built from. A **read-only snapshot** of those texts is kept, so later edits to the caller's mapping change nothing.
 - **Consequences:** Retrieval metrics (T16) and the analysis of retrieval vs. generation failures read `is_gold` and `rank` straight from records. An index can't silently be paired with the wrong embedder.
 
-## D-023 · Generation: backends, Hindi prompt, cache (2026-11-20)
-
-- **Context:** Deck slide 15 / CLAUDE.md §3 rows 5–6: the prompt is query + retrieved context in the source language; one LLM under fixed decoding; outputs cached and never recomputed.
-- **Decision** (`src/indichallu/generation/`, `configs/generation/m0.yaml`):
-  - **Generator** `qwen3:4b` via Ollama, pinned by its **Ollama manifest digest** (`359d7dd4…`) plus the HF source revision (`Qwen/Qwen3-4B@1cfa9a72…`, Apache-2.0).
-  - **Fixed decoding:** temperature 0, top_p 1, seed 0, max 256 new tokens, `num_ctx` 8192, **thinking off** (`think: false`, plus a defensive strip of any `<think>` block).
-  - **Context:** the top 3 retrieved passages.
-  - **Backends:** native Ollama `/api/chat` (it supports `think: false`; sends UTF-8 JSON), OpenAI-compatible (for vLLM on the T4), and a mock. The 4-bit HF backend (and logits for B4) comes in M1.
-  - **Hindi prompt** (`generation/prompts/hi.txt`): answer only from the passages, in Hindi, in one or two sentences; otherwise reply with the exact sentence "दिए गए अनुच्छेदों में इस प्रश्न का उत्तर नहीं है।". Passages are numbered `[1]..[k]` in rank order. Placeholders are filled in **one regex pass over the template**: chained `str.replace` would rewrite a `{question}` occurring inside passage text (caught by a test). **Pending native-speaker review (T22).**
-  - **Cache:** append-only JSONL keyed by SHA-256 over (backend, model, digest/revision, decoding, prompt), fsync'd per entry. A torn last line is ignored. Runs resume where they stopped.
-- **Hardware finding:** Ollama does **not** detect the laptop's GTX 1650 Ti ("inference compute … cpu", total VRAM 0 B), so `qwen3:4b` runs 100% on the CPU at about 6.5 tokens/s; a 3-passage Hindi prompt takes several minutes. M0 therefore generates a **seeded 60-question test sample** on the CPU (user's choice). The full set runs on the T4 in M1.
 ## D-022 · Evaluation metrics (2026-11-20)
 
 - **Context:** Deck slide 21; CLAUDE.md §3 rows 13–16. Every metric is reported per language and pooled, and the positive class (hallucinated) is the minority.
@@ -313,3 +302,40 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
     - **per type:** gold spans of a type vs claims predicted with that type, plus `ALL`.
   - **Fairness** (`fairness.py`): `by_language(records, metric_fn)` gives per-language, pooled, macro (mean over languages where defined, with `macro_n`) and worst-language for every rate metric. Counts are not averaged. It works with one language (M0).
 - **Consequences:** Results tables are generated from these functions only, never computed ad hoc. Claim-level detection beyond spans (e.g. per-claim AUROC) can be added in M1 without changing these definitions.
+
+## D-023 · Generation: backends, Hindi prompt, cache (2026-11-20)
+
+- **Context:** Deck slide 15 / CLAUDE.md §3 rows 5–6: the prompt is query + retrieved context in the source language; one LLM under fixed decoding; outputs cached and never recomputed.
+- **Decision** (`src/indichallu/generation/`, `configs/generation/m0.yaml`):
+  - **Generator** `qwen3:4b` via Ollama, pinned by its **Ollama manifest digest** (`359d7dd4…`) plus the HF source revision (`Qwen/Qwen3-4B@1cfa9a72…`, Apache-2.0).
+  - **Fixed decoding:** temperature 0, top_p 1, seed 0, max 256 new tokens, `num_ctx` 8192, **thinking off** (`think: false`, plus a defensive strip of any `<think>` block).
+  - **Context:** the top 3 retrieved passages.
+  - **Backends:** native Ollama `/api/chat` (it supports `think: false`; sends UTF-8 JSON), OpenAI-compatible (for vLLM on the T4), and a mock. The 4-bit HF backend (and logits for B4) comes in M1.
+  - **Hindi prompt** (`generation/prompts/hi.txt`): answer only from the passages, in Hindi, in one or two sentences; otherwise reply with the exact sentence "दिए गए अनुच्छेदों में इस प्रश्न का उत्तर नहीं है।". Passages are numbered `[1]..[k]` in rank order. Placeholders are filled in **one regex pass over the template**: chained `str.replace` would rewrite a `{question}` occurring inside passage text (caught by a test). **Pending native-speaker review (T22).**
+  - **Cache:** append-only JSONL keyed by SHA-256 over (backend, model, digest/revision, decoding, prompt), fsync'd per entry. A torn last line is ignored. Runs resume where they stopped.
+- **Hardware finding:** Ollama does **not** detect the laptop's GTX 1650 Ti ("inference compute … cpu", total VRAM 0 B), so `qwen3:4b` runs 100% on the CPU at about 6.5 tokens/s; a 3-passage Hindi prompt takes several minutes. M0 therefore generates a **seeded 60-question test sample** on the CPU (user's choice). The full set runs on the T4 in M1.
+
+## D-024 · M0 detector: decompose → align → aggregate, and baseline B1 (2026-11-20)
+
+- **Context:** Deck slides 16–17; CLAUDE.md §3 rows 7–9 and 19; baseline B1 (§4.2). The detector only asks whether the *retrieved* evidence supports a claim.
+- **Decision** (`src/indichallu/detection/`, `configs/detection/m0.yaml`):
+  - **Decompose** (rule-based, Hindi):
+    - sentences of the original answer, split at coordinating conjunctions (और, तथा, एवं, लेकिन, परंतु/परन्तु, किंतु/किन्तु, जबकि) and `;`, only where **both sides keep ≥ 3 tokens** ("राम और श्याम" stays whole);
+    - trimmed of whitespace and final punctuation, and of a leading demonstrative (यह/वह/ये/वे) when more than 3 tokens remain.
+
+    Claims are spans of the original answer. Other languages fall back to sentences until they get rules. An LLM-based decomposer is an M1 option.
+  - **Align:** each claim against **every** retrieved passage with `MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7@b5113eb3…` (MIT). The label order is read from the model config.
+    - Passages longer than 512 tokens would be truncated, so each passage is scored in **windows of up to 3 consecutive sentences**, and the passage gets its most decisive window (highest max(entail, contradict)).
+    - Premise and hypothesis both go through NFC → IndicNLP → ASCII digits.
+    - The full claim × passage matrix is stored on every claim.
+  - **Aggregate:** SUPPORTED if max entailment ≥ τₑ (evidence = that passage); else CONTRADICTED if max contradiction ≥ τ꜀; else UNSUPPORTED (closest passage kept for reference). The starting τₑ = τ꜀ = 0.5 come from config.
+  - **Predicted error type** (M0 heuristic, until the typed verifiers in M1):
+    - a year (1000–2099), a Hindi month or an era word → TEMPORAL;
+    - other digits → NUMERICAL;
+    - otherwise none (ENTITY/LOCATION need NER).
+  - **Baseline B1:** the same NLI model and thresholds with **sentence-level claims** (no decomposition), isolating what decomposition adds.
+  - **Threshold tuning (T34):** grid 0.05–0.95 for both thresholds, **refusing any non-val record**. Objective: span-level character F1, ties broken by response-level F1. Verdicts are re-decided from the stored matrix with no new NLI calls.
+- **Slide-17 regression (T27):**
+  - The CI version uses a deterministic lexical stand-in.
+  - **With the real mDeBERTa model the worked example passes:** claim 1 SUPPORTED (entail 0.79); claim 2 UNSUPPORTED (neutral 0.9996), type NUMERICAL, offsets on the age clause.
+- **Consequences:** M0 uses no IndicNER, so per-type results cover NUMERICAL and TEMPORAL only. The tuned thresholds and test results are recorded from the pilot run (T34/T35).
