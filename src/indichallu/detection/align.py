@@ -13,6 +13,7 @@ so "२१" in a passage matches "21" in a claim.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from typing import Protocol
 
@@ -58,11 +59,16 @@ class HFNLIModel:
         hyp_ids = tok(hypothesis, add_special_tokens=False)["input_ids"]
         budget = self.max_length - len(hyp_ids) - tok.num_special_tokens_to_add(pair=True)
         prem_ids = tok(premise, add_special_tokens=False)["input_ids"]
-        if len(prem_ids) <= budget or budget < 2 * CHUNK_OVERLAP:
+        spans = premise_chunk_spans(len(prem_ids), budget)
+        if len(spans) == 1:
+            if budget < 1:
+                warnings.warn(
+                    f"claim of {len(hyp_ids)} tokens fills max_length={self.max_length}; "
+                    "the pair will be truncated",
+                    stacklevel=2,
+                )
             return [premise]
-        return [
-            tok.decode(prem_ids[a:b]) for a, b in chunk_spans(len(prem_ids), budget, CHUNK_OVERLAP)
-        ]
+        return [tok.decode(prem_ids[a:b]) for a, b in spans]
 
     def predict(self, pairs: Sequence[tuple[str, str]]) -> np.ndarray:
         expanded, owner = [], []
@@ -109,6 +115,23 @@ def chunk_spans(n: int, size: int, overlap: int) -> list[tuple[int, int]]:
         if end == n:
             return spans
         start = end - overlap
+
+
+def premise_chunk_spans(n: int, budget: int) -> list[tuple[int, int]]:
+    """Token ranges of an ``n``-token premise that each fit ``budget`` tokens.
+
+    The overlap shrinks for small budgets (at most a quarter of the budget), so any
+    positive budget is honoured. Only when the claim alone fills ``max_length``
+    (budget < 1) is nothing left to chunk into: the whole premise is returned.
+
+    >>> premise_chunk_spans(10, 4)
+    [(0, 4), (3, 7), (6, 10)]
+    >>> premise_chunk_spans(5, 0)
+    [(0, 5)]
+    """
+    if n <= budget or budget < 1:
+        return [(0, n)]
+    return chunk_spans(n, budget, min(CHUNK_OVERLAP, budget // 4))
 
 
 def reduce_most_decisive(probs: np.ndarray, owner: Sequence[int], n: int) -> np.ndarray:
