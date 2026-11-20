@@ -33,38 +33,70 @@ import numpy as np
 FORMAT_VERSION = 1
 LOAD_ATTEMPTS = 5  # retries when a concurrent save moves CURRENT during a load
 LOCK_TIMEOUT_S = 120.0  # how long a save waits for another writer
-STALE_LOCK_S = 600.0  # a lock older than this was left by a crashed writer
+
+
+def _try_lock(fd: int) -> bool:
+    """Non-blocking exclusive OS lock on an open file; False if another holder has it."""
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
+def _unlock(fd: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_UN)
 
 
 class _SaveLock:
-    """Exclusive, cross-platform lock file (O_CREAT | O_EXCL); stale locks are broken."""
+    """Exclusive OS-level lock (``flock`` / ``msvcrt.locking``) on a lock file.
+
+    The operating system releases the lock when its holder exits, even after a crash,
+    so there are no stale locks to detect or break (Codex review on #22: breaking a
+    stale lock file by age raced between two waiting savers). The lock file itself is
+    never deleted; deleting a locked file would let a second writer lock a new inode.
+    """
 
     def __init__(self, path: Path):
         self.path = path
+        self.fd: int | None = None
 
     def __enter__(self) -> _SaveLock:
         import time
 
+        fd = os.open(self.path, os.O_CREAT | os.O_RDWR)
         deadline = time.monotonic() + LOCK_TIMEOUT_S
-        while True:
-            try:
-                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                os.write(fd, str(os.getpid()).encode())
+        while not _try_lock(fd):
+            if time.monotonic() > deadline:
                 os.close(fd)
-                return self
-            except FileExistsError:
-                try:
-                    if time.time() - self.path.stat().st_mtime > STALE_LOCK_S:
-                        self.path.unlink(missing_ok=True)  # crashed writer
-                        continue
-                except FileNotFoundError:
-                    continue
-                if time.monotonic() > deadline:
-                    raise TimeoutError(f"{self.path}: another save holds the lock") from None
-                time.sleep(0.05)
+                raise TimeoutError(f"{self.path}: another save holds the lock")
+            time.sleep(0.05)
+        self.fd = fd
+        return self
 
     def __exit__(self, *exc: object) -> None:
-        self.path.unlink(missing_ok=True)
+        if self.fd is not None:
+            try:
+                _unlock(self.fd)
+            finally:
+                os.close(self.fd)
+                self.fd = None
 
 
 def _read_pointer(directory: Path) -> str:
