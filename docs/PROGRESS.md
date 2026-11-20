@@ -140,10 +140,21 @@ Dated log of what was done, what broke, and what's next. Newest first.
     - config validation;
     - real-file test (skipped in CI).
   - 2,075 tests pass.
+- T12 merged (#17), Codex: no findings.
+- **T13: corpus statistics + dataset card** (D-019).
+  - `src/indichallu/data/stats.py`, `scripts/corpus_stats.py`. `compute` writes the committed `results/corpus_stats/indicqa.json`; `render` fills the AUTO block in the new `docs/dataset_card.md`.
+  - `render --check` runs in CI through pytest, so the card can't drift from the JSON.
+  - Downloaded and computed **all 9 languages** (about 22 MB; every file matched its pinned hash; the loader worked on all of them).
+  - Findings:
+    - offsets are wrong in every language (only 11–27% correct as given);
+    - "not found" answers in ml/ta/kn/mr are genuinely different text;
+    - passage length varies a lot by language.
+  - 2,085 tests pass.
+- **Week 1 data tasks (T10–T13) done.**
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T13: `scripts/corpus_stats.py` → auto-generated per-language stats table in `docs/dataset_card.md`.
+- T14: `retrieval/embed.py` (sentence-transformers wrapper, model prefixes, embedding cache), then T15 (FAISS index + top-k retrieval with scores, ranks, is_gold).
 
 ## 2026-11-19
 
