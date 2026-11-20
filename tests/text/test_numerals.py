@@ -71,8 +71,16 @@ def test_scope_all_also_converts_other_decimal_digits():
     assert to_ascii_digits(text).text == "٢٠ ２０ 20"
     assert to_ascii_digits(text, scope="all").text == "20 20 20"
     assert has_native_digits("٢", scope="all") and not has_native_digits("٢")
-    with pytest.raises(ValueError):
-        to_ascii_digits(text, scope="arabic")
+
+
+@pytest.mark.parametrize("bad", ["arabic", "", "ALL", None])
+def test_both_functions_reject_bad_scopes_consistently(bad):
+    """Codex review on #13: has_native_digits must not silently treat a bad scope as 'all'."""
+    for text in ("٢٠ २०", ""):
+        with pytest.raises(ValueError):
+            to_ascii_digits(text, scope=bad)
+        with pytest.raises(ValueError):
+            has_native_digits(text, scope=bad)
 
 
 @pytest.mark.parametrize("seed", range(100))

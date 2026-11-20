@@ -46,6 +46,11 @@ def indic_digit_table() -> dict[str, str]:
     return table
 
 
+def _check_scope(scope: object) -> None:
+    if scope not in ("indic", "all"):
+        raise ValueError(f"scope must be 'indic' or 'all', got {scope!r}")
+
+
 def _ascii_digit(ch: str, scope: Scope) -> str | None:
     if "0" <= ch <= "9":
         return None  # already ASCII
@@ -58,8 +63,7 @@ def _ascii_digit(ch: str, scope: Scope) -> str | None:
 
 def to_ascii_digits(text: str, scope: Scope = "indic") -> Normalized:
     """Replace native decimal digits with ASCII ones; offsets map back exactly."""
-    if scope not in ("indic", "all"):
-        raise ValueError(f"scope must be 'indic' or 'all', got {scope!r}")
+    _check_scope(scope)
     builder = OffsetMapBuilder(text)
     for ch in text:
         ascii_digit = _ascii_digit(ch, scope)
@@ -73,4 +77,5 @@ def to_ascii_digits(text: str, scope: Scope = "indic") -> Normalized:
 
 def has_native_digits(text: str, scope: Scope = "indic") -> bool:
     """True if ``text`` contains any digit that :func:`to_ascii_digits` would convert."""
+    _check_scope(scope)  # same validation as to_ascii_digits, even for empty text
     return any(_ascii_digit(ch, scope) is not None for ch in text)
