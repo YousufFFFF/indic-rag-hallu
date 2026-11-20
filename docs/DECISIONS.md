@@ -208,3 +208,26 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Tests** use a local HTTP server, so CI needs no network. A `network`-marked test (excluded by default; `pytest -m network`) checks the real Hindi file against its pin.
 - **Consequences:** A changed upstream file fails loudly instead of silently changing results. New datasets get their own pinned config.
 - **Lesson:** my first, text-sliced reading of the HF tree listing paired each path with the *next* file's size and hash. The pins come from properly parsed JSON. The config test also rejects duplicate hashes, which catches copy-paste mistakes.
+
+## D-017 · IndicQA loading and answer-offset realignment (2026-11-20)
+
+- **Context:** The M0 corpus is IndicQA Hindi. I inspected the pinned file (2,673,518 bytes):
+  - **Shape:** SQuAD-style, 261 articles, each with one paragraph. 261 unique contexts (1,156–8,857 chars, median 1,997).
+  - **Questions:** 1,547, each with exactly one answer. Category `NO` (495) means unanswerable, marked by `text == ""` and `answer_start == null`. `SHORT` (1,052) means answerable.
+  - 54 questions are not in NFC.
+  - **The given `answer_start` is wrong for 894 of 1,052 answers.** Every answer text does occur in its context, always at or *after* the given offset (shift 0–60 chars, median 6, p95 28). No single unit explains the shift: bytes match 12, UTF-16 units 90, and counts of newlines, spaces, marks, viramas or ZWJ/ZWNJ at most 90 of 779.
+- **Decision** (`src/indichallu/data/loaders/indicqa.py`):
+  - **Passages** are deduplicated by content. The ID is `<lang>-p` + 10 hex chars of the context's SHA-256, independent of file order. The first title wins.
+  - **QA pairs** get the ID `<lang>-q` + the original id (6 digits; stable at the pinned revision). Each links to its gold passage and keeps the original `answer_start`.
+  - **Answer offsets are realigned and verified:**
+    - `exact` (the given offset is right);
+    - `unique` (the answer text occurs once in the context);
+    - `nearest` (the nearest occurrence at most `MAX_SHIFT = 80` chars after the given offset, and at least `MIN_MARGIN = 10` chars closer than the next);
+    - otherwise `ambiguous` / `not_found`, with **no offset**. The question is kept, but nothing relies on its answer span.
+  - Answer text is whitespace-trimmed and the offset adjusted. Raw text is kept as-is: normalisation happens in the pipeline.
+  - **Hindi result:** 158 exact, 675 unique, 218 nearest, **1 ambiguous**, 0 not found. Every kept offset slices out exactly its answer text.
+- **Consequences:**
+  - Anything using answer spans (e.g. building the pilot set, T30) must use `answer_start`/`answer_end` and skip `None`.
+  - Retrieval evaluation is unaffected: the gold *passage* is the paragraph itself.
+  - These counts belong in the dataset card (T13).
+  - Other languages may behave differently; the loader reports counts per status, so check them before enabling a language.

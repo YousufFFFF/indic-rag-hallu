@@ -115,10 +115,20 @@ Dated log of what was done, what broke, and what's next. Newest first.
     - an opt-in `network` test against the real file.
   - Caught my own misreading of the HF tree listing (sizes and hashes shifted by one file) before pinning anything.
   - 2,040 tests pass.
+- T10 merged (#15), Codex: no findings.
+- **T11: IndicQA loader.** `src/indichallu/data/loaders/indicqa.py` (D-017).
+  - Passages are deduplicated with content-hash IDs. QA pairs link to their gold passage, with an unanswerable flag.
+  - **Found that 894 of 1,052 Hindi answer offsets in the source data are wrong.** Investigated: always shifted forward 0–60 chars, and no unit explains it. Offsets are realigned with a recorded status: 158 exact, 675 unique, 218 nearest, 1 ambiguous, 0 not found. Every kept offset is verified.
+  - Tests:
+    - a fixture covering exact / shifted / padded / unanswerable / repeated answers and duplicate contexts;
+    - realignment rules;
+    - malformed input;
+    - a real-file test (skipped where the data isn't downloaded, e.g. CI).
+  - 2,054 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T11: `data/loaders/indicqa.py` (passages with stable IDs, QA pairs with gold passage, unanswerable flag), then T12 (passage-level split) and T13 (corpus stats).
+- T12: `data/split.py` (seeded passage-level train/val/test split + leakage test), then T13 (corpus stats → dataset card).
 
 ## 2026-11-19
 
