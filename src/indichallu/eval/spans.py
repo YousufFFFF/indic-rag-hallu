@@ -20,6 +20,7 @@ same predicted type, with the same three metrics. Undefined values are ``None``.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Sequence
 
 from indichallu.data.schema import Record, SpanType, Verdict
@@ -77,8 +78,10 @@ def span_metrics(
         )
         gt, pt = _token_set(r.answer, gc), _token_set(r.answer, pc)
         tok_inter, tok_union = tok_inter + len(gt & pt), tok_union + len(gt | pt)
-        exact_tp += len(set(g) & set(p))
-        exact_pred, exact_gold = exact_pred + len(set(p)), exact_gold + len(set(g))
+        # one-to-one: each gold span can be matched by at most one predicted span with the
+        # same offsets; duplicate predictions are counted (and the extras are false positives)
+        exact_tp += sum((Counter(g) & Counter(p)).values())
+        exact_pred, exact_gold = exact_pred + len(p), exact_gold + len(g)
     cp, cr, cf = _prf(char_tp, char_pred, char_gold)
     ep, er, ef = _prf(exact_tp, exact_pred, exact_gold)
     return {

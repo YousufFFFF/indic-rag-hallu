@@ -239,3 +239,13 @@ def test_by_language_with_one_language_and_undefined_values():
     out = by_language([labelled([], rid=1)], lambda rs: span_metrics(rs))
     assert list(out["per_language"]) == ["hi"]
     assert out["macro"]["span_f1"] is None and out["macro_n"]["span_f1"] == 0
+
+
+def test_duplicate_predicted_spans_are_counted():
+    """Codex review on #21: two predictions with the same offsets are two predictions."""
+    c = claim(C2, "UNSUPPORTED", typ="NUMERICAL")
+    rec = labelled([c, c], gold_sub=C2)
+    s = span_metrics([rec])
+    assert s["predicted_spans"] == 2 and s["gold_spans"] == 1
+    assert s["exact_precision"] == 0.5 and s["exact_recall"] == 1.0
+    assert s["exact_f1"] == pytest.approx(2 / 3)
