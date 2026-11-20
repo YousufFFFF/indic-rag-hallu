@@ -1,0 +1,28 @@
+# Retrieval embedders (DECISIONS D-020). Revisions are full commit hashes, read from the
+# Hugging Face API on 2026-11-20; licences and gating are in docs/RESOURCES.md.
+# Prefixes follow each model card: mE5 needs "query: " / "passage: "; bge-m3 needs none.
+embedders:
+  bge-m3:
+    model_id: BAAI/bge-m3
+    revision: 5617a9f61b028005a4858fdac845db406aefb181
+    dim: 1024
+    query_prefix: ""
+    passage_prefix: ""
+    normalize: true
+    max_seq_length: 2048   # model supports 8192; longest M0 passage is under this
+  me5-large:
+    model_id: intfloat/multilingual-e5-large
+    revision: 3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3
+    dim: 1024
+    query_prefix: "query: "
+    passage_prefix: "passage: "
+    normalize: true
+    max_seq_length: 512    # model maximum: longer passages are truncated
+  me5-small:               # small model for local checks; not used for reported results
+    model_id: intfloat/multilingual-e5-small
+    revision: 614241f622f53c4eeff9890bdc4f31cfecc418b3
+    dim: 384
+    query_prefix: "query: "
+    passage_prefix: "passage: "
+    normalize: true
+    max_seq_length: 512

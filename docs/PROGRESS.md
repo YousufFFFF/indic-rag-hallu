@@ -151,10 +151,17 @@ Dated log of what was done, what broke, and what's next. Newest first.
     - passage length varies a lot by language.
   - 2,085 tests pass.
 - **Week 1 data tasks (T10–T13) done.**
+- T13 merged (#18), after fixing a Codex finding: cached data files are now re-verified before computing stats (`verified_local_path`).
+- **T14: embedder wrapper.** `src/indichallu/retrieval/embed.py` + `configs/retrieval/embedders.yaml` (D-020).
+  - bge-m3, mE5-large and mE5-small at full pinned revisions, with prefixes checked against the model cards.
+  - NFC input, float32, normalised output, shape and finiteness checks, an atomic disk cache keyed by config and texts.
+  - 16 unit tests with a fake encoder (prefixes, NFC, normalisation, empty input, bad encoder output, cache hits and misses for every config change, key collisions, corrupt cache).
+  - Real `multilingual-e5-small` slow test passes locally: a Hindi query ranks its passage first.
+  - 2,107 tests pass.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
-- T14: `retrieval/embed.py` (sentence-transformers wrapper, model prefixes, embedding cache), then T15 (FAISS index + top-k retrieval with scores, ranks, is_gold).
+- T15: `retrieval/index.py` (FAISS build/save/load) + `retrieval/retrieve.py` (top-k with scores, ranks, is_gold), then T16–T18 (retrieval, detection and span metrics).
 
 ## 2026-11-19
 
