@@ -2,7 +2,7 @@
 
 One template per language lives in ``generation/prompts/<lang>.txt`` with ``{passages}``
 and ``{question}`` placeholders. Templates are reviewed by a native speaker before use
-(CLAUDE.md §3 row 5; the review is recorded in docs/DECISIONS.md).
+(CLAUDE.md §3 row 5). The Hindi template was approved by the maintainer on 2026-11-20 (DECISIONS D-023).
 
 Passages are numbered ``[1] ... [k]`` in retrieval-rank order, so an answer can be
 traced back to the passages the model actually saw.
