@@ -82,6 +82,17 @@ class _FakeOllama(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    tags = [{"name": "qwen3:4b", "digest": "d" * 64}]
+
+    def do_GET(self):  # noqa: N802
+        type(self).bodies.append((self.path, None))
+        data = json.dumps({"models": type(self).tags}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def log_message(self, *args):
         pass
 
@@ -89,6 +100,7 @@ class _FakeOllama(http.server.BaseHTTPRequestHandler):
 @pytest.fixture
 def fake_ollama():
     _FakeOllama.bodies = []
+    _FakeOllama.tags = [{"name": "qwen3:4b", "digest": "d" * 64}]
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FakeOllama)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{server.server_address[1]}/v1", _FakeOllama.bodies
@@ -180,3 +192,38 @@ def test_cache_key_depends_on_prompt_and_identity():
     ident = cfg().identity()
     assert cache_key(ident, "a") != cache_key(ident, "b")
     assert cache_key(ident, "a") != cache_key(cfg(model="x").identity(), "a")
+
+
+# --- review fixes on #22 ---------------------------------------------------------------
+
+
+def test_backend_refuses_a_tag_that_resolves_to_other_weights(fake_ollama):
+    """A tag is mutable (qwen3:4b moved to the Thinking model); the digest is the pin."""
+    url, bodies = fake_ollama
+    decoding = load_generator_config("m0").decoding
+    with pytest.raises(RuntimeError, match="resolves to digest"):
+        OllamaBackend("qwen3:4b", url, expected_digest="e" * 64).generate("प्रश्न", decoding)
+    assert [p for p, _ in bodies] == ["/api/tags"]  # nothing generated
+    with pytest.raises(RuntimeError, match="None"):
+        OllamaBackend("missing:tag", url, expected_digest="d" * 64).generate("प्रश्न", decoding)
+
+
+def test_backend_verifies_once_then_generates(fake_ollama):
+    url, bodies = fake_ollama
+    decoding = load_generator_config("m0").decoding
+    b = OllamaBackend("qwen3:4b", url, expected_digest="d" * 64)
+    b.generate("एक", decoding)
+    b.generate("दो", decoding)
+    assert [p for p, _ in bodies] == ["/api/tags", "/api/chat", "/api/chat"]
+
+
+def test_cache_survives_a_line_torn_mid_character(tmp_path):
+    """Codex review on #22: a crash can cut a Hindi answer inside a UTF-8 sequence."""
+    path = tmp_path / "c.jsonl"
+    cache = GenerationCache(path)
+    cache.put("k1", {"generation": {"text": "राज्य", "raw": "राज्य"}})
+    torn = '{"key": "k2", "generation": {"text": "सरकार"}}'.encode()
+    with path.open("ab") as f:
+        f.write(torn[: torn.index("सरकार".encode()) + 2])  # stops inside a 3-byte character
+    reloaded = GenerationCache(path)
+    assert len(reloaded) == 1 and reloaded.get("k1")["generation"]["text"] == "राज्य"

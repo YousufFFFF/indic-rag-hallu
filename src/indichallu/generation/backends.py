@@ -45,11 +45,39 @@ def clean_answer(raw: str) -> str:
 class OllamaBackend:
     name = "ollama"
 
-    def __init__(self, model: str, base_url: str, timeout: float = 600.0):
+    def __init__(
+        self,
+        model: str,
+        base_url: str,
+        timeout: float = 600.0,
+        expected_digest: str | None = None,
+    ):
         # accept either .../v1 (OpenAI-compatible root) or the server root
         self.model = model
         self.root = base_url.rstrip("/").removesuffix("/v1")
         self.timeout = timeout
+        self.expected_digest = expected_digest
+        self._verified = expected_digest is None
+
+    def installed_digest(self) -> str | None:
+        """The digest the server's tag currently resolves to (None if not installed)."""
+        with urllib.request.urlopen(f"{self.root}/api/tags", timeout=30) as resp:
+            models = json.loads(resp.read().decode("utf-8")).get("models", [])
+        names = {self.model, self.model if ":" in self.model else f"{self.model}:latest"}
+        return next((m.get("digest") for m in models if m.get("name") in names), None)
+
+    def verify(self) -> None:
+        """Refuse to generate unless the tag resolves to the pinned weights: a tag is
+        mutable (``qwen3:4b`` moved to the Thinking model), a digest is not."""
+        if self._verified:
+            return
+        found = self.installed_digest()
+        if found != self.expected_digest:
+            raise RuntimeError(
+                f"Ollama model {self.model!r} resolves to digest {found!r}, but the config "
+                f"pins {self.expected_digest!r}; pull the pinned model or update the config"
+            )
+        self._verified = True
 
     def request_body(self, prompt: str, decoding: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -67,6 +95,7 @@ class OllamaBackend:
         }
 
     def generate(self, prompt: str, decoding: dict[str, Any]) -> Generation:
+        self.verify()  # once per backend, before the first request
         body = json.dumps(self.request_body(prompt, decoding)).encode("utf-8")
         request = urllib.request.Request(
             f"{self.root}/api/chat", data=body, headers={"Content-Type": "application/json"}

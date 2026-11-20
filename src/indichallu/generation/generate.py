@@ -76,7 +76,7 @@ def load_generator_config(name: str = "m0") -> GeneratorConfig:
 def make_backend(cfg: GeneratorConfig) -> Backend:
     base_url = os.environ.get(cfg.base_url_env, "http://127.0.0.1:11434/v1")
     if cfg.backend == "ollama":
-        return OllamaBackend(cfg.model, base_url)
+        return OllamaBackend(cfg.model, base_url, expected_digest=cfg.ollama_digest)
     if cfg.backend == "openai_compatible":
         return OpenAICompatibleBackend(cfg.model, base_url)
     raise ValueError(f"unknown backend {cfg.backend!r}")
@@ -97,11 +97,13 @@ class GenerationCache:
     def __post_init__(self) -> None:
         self.path = Path(self.path)
         if self.path.exists():
-            for line in self.path.read_text(encoding="utf-8").splitlines():
+            # bytes, decoded line by line: a crash can cut a line mid-character, and that
+            # must cost only that line, not the whole cache
+            for raw_line in self.path.read_bytes().splitlines():
                 try:
-                    entry = json.loads(line)
+                    entry = json.loads(raw_line.decode("utf-8"))
                     self._entries[entry["key"]] = entry
-                except (json.JSONDecodeError, KeyError, TypeError):
+                except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError):
                     continue  # torn or foreign line: ignore, it will be regenerated
 
     def get(self, key: str) -> dict[str, Any] | None:
