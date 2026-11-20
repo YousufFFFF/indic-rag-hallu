@@ -260,3 +260,15 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - "Not found" answers range from 0 (hi, bn) to 43 (ml). Checked by hand: almost all are genuinely different text, not normalisation differences.
   - Passage length varies a lot (Kannada and Gujarati median under 900 chars, Hindi about 2,000).
 - **Consequences:** After changing the loader, splits or tokenizer, rerun `compute` and `render` and commit both files. CI catches a stale card but not stale JSON (no data in CI), so the JSON is regenerated as part of any PR that changes those modules.
+
+## D-020 · Embedder wrapper (2026-11-20)
+
+- **Context:** Deck block diagram "Multilingual Embedder"; CLAUDE.md §3 row 3. M0 compares bge-m3 (primary) with multilingual-e5-large. The real runs happen on the T4 (T19); CI must stay CPU-only with no model downloads.
+- **Decision** (`src/indichallu/retrieval/embed.py`, `configs/retrieval/embedders.yaml`):
+  - **Config per embedder:** model id, **full pinned revision**, dimension, query/passage prefixes **taken from each model card**, normalisation, max sequence length.
+    - mE5 needs `"query: "` / `"passage: "`; bge-m3 needs none.
+    - bge-m3 is capped at 2,048 tokens (supports 8,192); mE5's model maximum is 512, so **long passages are truncated for mE5**. This is a known limitation of the comparison.
+  - **`Embedder`** adds the prefix, NFC-normalises the text (models see the source script, not the IndicNLP matching form), calls a pluggable encoder, and checks the shape, finiteness and dtype (float32). It L2-normalises in one place for every encoder, so inner product = cosine.
+  - **Disk cache:** keyed by SHA-256 over the config, the kind (query/passage) and the exact length-prefixed inputs. Any config or text change re-embeds; a corrupt or mismatched cache entry is recomputed. Writes are atomic.
+  - **Tests:** a deterministic fake encoder in CI; a `slow` test with the real `multilingual-e5-small` (pinned, MIT), run locally: a Hindi query ranks its relevant passage first.
+- **Consequences:** Passage chunking for mE5's 512-token limit is not done in M0. If mE5's numbers suffer from truncation, that is reported, not hidden.

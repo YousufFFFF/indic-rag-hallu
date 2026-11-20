@@ -32,9 +32,10 @@ Every model and dataset this project plans to use. **Checked against the Hugging
 
 | HF ID | Revision | Licence | Gated | Params / download | 16 GB? | M0? | Notes |
 |---|---|---|---|---|---|---|---|
-| `BAAI/bge-m3` | `5617a9f61b02` | MIT | no | ~568M; `pytorch_model.bin` 2.27 GB | yes (fp16) | **yes — primary** | Dense mode via sentence-transformers. |
-| `intfloat/multilingual-e5-large` | `3d7cfbdacd47` | MIT | no | 560M; ~2.2 GB | yes | **yes — comparison** | Needs `query: ` / `passage: ` prefixes. |
+| `BAAI/bge-m3` | `5617a9f61b02` | MIT | no | ~568M; `pytorch_model.bin` 2.27 GB | yes (fp16) | **yes — primary** | Dense mode via sentence-transformers. No query prefix. Supports 8,192 tokens; capped at 2,048. Full revisions in `configs/retrieval/embedders.yaml`. |
+| `intfloat/multilingual-e5-large` | `3d7cfbdacd47` | MIT | no | 560M; ~2.2 GB | yes | **yes — comparison** | Needs `query: ` / `passage: ` prefixes. **Max 512 tokens: long passages are truncated.** |
 | `intfloat/multilingual-e5-base` | `d12875059715` | MIT | no | 278M; ~1.1 GB | yes (CPU ok) | CI/dev | Fast option for laptop runs. |
+| `intfloat/multilingual-e5-small` | `614241f622f5` | MIT | no | 118M; ~0.47 GB | yes (CPU ok) | dev | Local real-model test (`pytest -m slow`); not used for reported results. Max 512 tokens. |
 | `intfloat/multilingual-e5-large-instruct` | `274baa43b0e1` | MIT | no | 560M | yes | no | Optional M1 comparison. |
 
 ### 2.2 Generators
