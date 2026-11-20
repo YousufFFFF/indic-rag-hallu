@@ -31,7 +31,7 @@ from indichallu.detection.detector import Detector, b1_claims, load_detection_co
 from indichallu.detection.tune import redecide, tune_thresholds
 from indichallu.eval.detection import response_level_metrics
 from indichallu.eval.fairness import by_language
-from indichallu.eval.retrieval import retrieval_metrics_from_records
+from indichallu.eval.retrieval import Query, retrieval_metrics
 from indichallu.eval.spans import span_metrics_by_type
 from indichallu.retrieval.embed import REPO_ROOT, Embedder, load_embedder_config
 from indichallu.retrieval.retrieve import Retriever
@@ -78,25 +78,15 @@ def main(argv: list[str] | None = None) -> int:
             k=args.k,
             gold_passage_ids=[q.gold_passage_id for q in questions],
         )
-        retrieval_records = []
-        from indichallu.data.schema import Record
-
-        for q, h in zip(questions, hits, strict=True):
-            retrieval_records.append(
-                Record(
-                    id=q.qa_id,
-                    lang=ds.lang,
-                    split=split.of_passage(q.gold_passage_id).value,
-                    source="natural",
-                    question=q.question,
-                    retrieved=h,
-                    answer="",
-                )
-            )
-        test_retrieval = [r for r in retrieval_records if r.split is Split.TEST]
-        retrieval = by_language(
-            test_retrieval, lambda rs: retrieval_metrics_from_records(rs, ks=(1, 3, 5, 10))
-        )
+        # one gold passage per question; relevance = is_gold in rank order
+        test_queries = [
+            Query(tuple(p.is_gold for p in h), n_relevant=1)
+            for q, h in zip(questions, hits, strict=True)
+            if split.of_passage(q.gold_passage_id) is Split.TEST
+        ]
+        per_lang = retrieval_metrics(test_queries, ks=(1, 3, 5, 10))
+        # single language in M0: pooled == the language's own value
+        retrieval = {"per_language": {ds.lang: per_lang}, "pooled": per_lang}
         print("retrieval (test):", json.dumps(retrieval["pooled"]), flush=True)
 
         # 2. pilot set: top-`context_passages` as the evidence
