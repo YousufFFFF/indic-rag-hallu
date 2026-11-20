@@ -297,3 +297,19 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Hindi prompt** (`generation/prompts/hi.txt`): answer only from the passages, in Hindi, in one or two sentences; otherwise reply with the exact sentence "दिए गए अनुच्छेदों में इस प्रश्न का उत्तर नहीं है।". Passages are numbered `[1]..[k]` in rank order. Placeholders are filled in **one regex pass over the template**: chained `str.replace` would rewrite a `{question}` occurring inside passage text (caught by a test). **Pending native-speaker review (T22).**
   - **Cache:** append-only JSONL keyed by SHA-256 over (backend, model, digest/revision, decoding, prompt), fsync'd per entry. A torn last line is ignored. Runs resume where they stopped.
 - **Hardware finding:** Ollama does **not** detect the laptop's GTX 1650 Ti ("inference compute … cpu", total VRAM 0 B), so `qwen3:4b` runs 100% on the CPU at about 6.5 tokens/s; a 3-passage Hindi prompt takes several minutes. M0 therefore generates a **seeded 60-question test sample** on the CPU (user's choice). The full set runs on the T4 in M1.
+## D-022 · Evaluation metrics (2026-11-20)
+
+- **Context:** Deck slide 21; CLAUDE.md §3 rows 13–16. Every metric is reported per language and pooled, and the positive class (hallucinated) is the minority.
+- **Decision** (`src/indichallu/eval/`):
+  - **Retrieval** (`retrieval.py`): Recall@k, nDCG@k (binary relevance, log2 discount) and MRR, with relevance = `is_gold`. IndicQA has exactly one gold passage per question. Queries with no relevant passage are excluded and counted. **A retrieved list shorter than k raises**, unless the corpus itself is smaller, because it would silently deflate Recall@k.
+  - **Detection** (`detection.py`): precision, recall and F1 of the *hallucinated* class, balanced accuracy, and AUROC on a continuous score. F1 = 2TP/(2TP+FP+FN), checked against scikit-learn.
+    - Response level: gold `labels.response`; predicted label = any non-SUPPORTED claim; score = max claim score (`1 − entail`, else 1/0 from the verdict).
+    - **Undefined metrics are `None`, never a made-up 0 or 1**: AUROC with one class, precision with no predictions, and so on.
+  - **Spans** (`spans.py`, on original offsets): predicted spans are non-SUPPORTED claims (CONTRADICTED counts).
+    - span-level F1 over hallucinated **characters**;
+    - **token IoU** over hallucinated tokens from `text.sentseg.tokens`; a token counts if any of its characters does;
+    - **exact-span** P/R/F1;
+    - all micro-averaged;
+    - **per type:** gold spans of a type vs claims predicted with that type, plus `ALL`.
+  - **Fairness** (`fairness.py`): `by_language(records, metric_fn)` gives per-language, pooled, macro (mean over languages where defined, with `macro_n`) and worst-language for every rate metric. Counts are not averaged. It works with one language (M0).
+- **Consequences:** Results tables are generated from these functions only, never computed ad hoc. Claim-level detection beyond spans (e.g. per-claim AUROC) can be added in M1 without changing these definitions.
