@@ -60,8 +60,9 @@ class Detector:
         claim_fn: ClaimFn = decompose,
         window_sentences: int = 3,
         ascii_digits: bool = True,
+        window_stride: int = 1,
     ):
-        self.aligner = Aligner(nli, lang, window_sentences, ascii_digits)
+        self.aligner = Aligner(nli, lang, window_sentences, ascii_digits, window_stride)
         self.lang, self.thresholds, self.claim_fn = lang, thresholds, claim_fn
 
     @classmethod
@@ -80,6 +81,7 @@ class Detector:
             claim_fn,
             cfg["nli"].get("window_sentences", 3),
             cfg.get("normalize", {}).get("ascii_digits", True),
+            cfg["nli"].get("window_stride", 1),
         )
 
     def detect(self, record: Record) -> Record:

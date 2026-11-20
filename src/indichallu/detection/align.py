@@ -51,14 +51,32 @@ class HFNLIModel:
             raise ValueError(f"{model_id}: unexpected NLI labels {id2label}") from e
         self.max_length, self.batch_size = max_length, batch_size
 
+    def _fit(self, premise: str, hypothesis: str) -> list[str]:
+        """The premise as one or more pieces that each fit ``max_length`` together with the
+        hypothesis, so truncation never silently drops evidence (Codex review on #23)."""
+        tok = self.tokenizer
+        hyp_ids = tok(hypothesis, add_special_tokens=False)["input_ids"]
+        budget = self.max_length - len(hyp_ids) - tok.num_special_tokens_to_add(pair=True)
+        prem_ids = tok(premise, add_special_tokens=False)["input_ids"]
+        if len(prem_ids) <= budget or budget < 2 * CHUNK_OVERLAP:
+            return [premise]
+        return [
+            tok.decode(prem_ids[a:b]) for a, b in chunk_spans(len(prem_ids), budget, CHUNK_OVERLAP)
+        ]
+
     def predict(self, pairs: Sequence[tuple[str, str]]) -> np.ndarray:
+        expanded, owner = [], []
+        for i, (premise, hypothesis) in enumerate(pairs):
+            for piece in self._fit(premise, hypothesis):
+                expanded.append((piece, hypothesis))
+                owner.append(i)
         out = []
-        for i in range(0, len(pairs), self.batch_size):
-            batch = pairs[i : i + self.batch_size]
+        for i in range(0, len(expanded), self.batch_size):
+            batch = expanded[i : i + self.batch_size]
             enc = self.tokenizer(
                 [p for p, _ in batch],
                 [h for _, h in batch],
-                truncation="only_first",
+                truncation="longest_first",  # only reachable for absurdly long claims
                 max_length=self.max_length,
                 padding=True,
                 return_tensors="pt",
@@ -66,26 +84,71 @@ class HFNLIModel:
             with self.torch.no_grad():
                 logits = self.model(**enc).logits
             out.append(self.torch.softmax(logits, dim=-1)[:, self.order].numpy())
-        return np.concatenate(out) if out else np.zeros((0, 3))
+        probs = np.concatenate(out) if out else np.zeros((0, 3))
+        return reduce_most_decisive(probs, owner, len(pairs))
 
 
-def premise_windows(text: str, lang: str, window_sentences: int = 3) -> list[str]:
-    """Overlapping windows of up to ``window_sentences`` consecutive sentences."""
+CHUNK_OVERLAP = 32  # tokens shared by consecutive premise chunks
+
+
+def chunk_spans(n: int, size: int, overlap: int) -> list[tuple[int, int]]:
+    """[start, end) token ranges of length <= ``size`` covering 0..n, consecutive ranges
+    overlapping by ``overlap`` tokens.
+
+    >>> chunk_spans(10, 4, 1)
+    [(0, 4), (3, 7), (6, 10)]
+    """
+    if n <= size:
+        return [(0, n)]
+    if not 0 <= overlap < size:
+        raise ValueError("need 0 <= overlap < size")
+    spans, start = [], 0
+    while True:
+        end = min(start + size, n)
+        spans.append((start, end))
+        if end == n:
+            return spans
+        start = end - overlap
+
+
+def reduce_most_decisive(probs: np.ndarray, owner: Sequence[int], n: int) -> np.ndarray:
+    """Per original pair, the row of its most decisive piece: highest max(entail, contradict)."""
+    best = np.full((n, 3), np.nan)
+    for row, i in zip(probs, owner, strict=True):
+        if np.isnan(best[i, 0]) or max(row[0], row[2]) > max(best[i, 0], best[i, 2]):
+            best[i] = row
+    return best
+
+
+def premise_windows(text: str, lang: str, window_sentences: int = 3, stride: int = 1) -> list[str]:
+    """Windows of up to ``window_sentences`` consecutive sentences, starting every
+    ``stride`` sentences; the last window always reaches the final sentence."""
+    if not 1 <= stride <= window_sentences:
+        raise ValueError("need 1 <= stride <= window_sentences")
     sents = [s.text for s in sentences(text, lang)] or [text]
     if len(sents) <= window_sentences:
         return [" ".join(sents)]
-    return [
-        " ".join(sents[i : i + window_sentences]) for i in range(len(sents) - window_sentences + 1)
-    ]
+    last = len(sents) - window_sentences
+    starts = list(range(0, last + 1, stride))
+    if starts[-1] != last:
+        starts.append(last)
+    return [" ".join(sents[i : i + window_sentences]) for i in starts]
 
 
 class Aligner:
     def __init__(
-        self, nli: NLIModel, lang: str, window_sentences: int = 3, ascii_digits: bool = True
+        self,
+        nli: NLIModel,
+        lang: str,
+        window_sentences: int = 3,
+        ascii_digits: bool = True,
+        window_stride: int = 1,
     ):
         self.nli, self.lang = nli, lang
         self.window_sentences, self.ascii_digits = window_sentences, ascii_digits
+        self.window_stride = window_stride
         self._windows: dict[str, list[str]] = {}
+        self._pair_cache: dict[tuple[str, str], np.ndarray] = {}  # identical pairs scored once
 
     def _norm(self, text: str) -> str:
         return normalize(text, self.lang, ascii_digits=self.ascii_digits).text
@@ -94,9 +157,18 @@ class Aligner:
         if passage.passage_id not in self._windows:
             self._windows[passage.passage_id] = [
                 self._norm(w)
-                for w in premise_windows(passage.text, self.lang, self.window_sentences)
+                for w in premise_windows(
+                    passage.text, self.lang, self.window_sentences, self.window_stride
+                )
             ]
         return self._windows[passage.passage_id]
+
+    def _predict(self, pairs: list[tuple[str, str]]) -> np.ndarray:
+        todo = list(dict.fromkeys(p for p in pairs if p not in self._pair_cache))
+        if todo:
+            for pair, row in zip(todo, self.nli.predict(todo), strict=True):
+                self._pair_cache[pair] = np.asarray(row, dtype=float)
+        return np.array([self._pair_cache[p] for p in pairs]) if pairs else np.zeros((0, 3))
 
     def score(
         self, claims: Sequence[str], passages: Sequence[RetrievedPassage]
@@ -109,7 +181,7 @@ class Aligner:
                 for w in self._passage_windows(p):
                     pairs.append((w, h))
                     owners.append((ci, pi))
-        probs = self.nli.predict(pairs) if pairs else np.zeros((0, 3))
+        probs = self._predict(pairs)
         best: dict[tuple[int, int], np.ndarray] = {}
         for owner, pr in zip(owners, probs, strict=True):
             current = best.get(owner)

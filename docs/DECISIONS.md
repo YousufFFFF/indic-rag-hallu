@@ -326,7 +326,9 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 
     Claims are spans of the original answer. Other languages fall back to sentences until they get rules. An LLM-based decomposer is an M1 option.
   - **Align:** each claim against **every** retrieved passage with `MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7@b5113eb3…` (MIT). The label order is read from the model config.
-    - Passages longer than 512 tokens would be truncated, so each passage is scored in **windows of up to 3 consecutive sentences**, and the passage gets its most decisive window (highest max(entail, contradict)).
+    - Passages longer than 512 tokens would be truncated, so each passage is scored in **windows of up to 3 consecutive sentences, starting every 2 sentences** (stride 2; the last window always reaches the final sentence, and every pair of adjacent sentences shares a window). The passage gets its most decisive window (highest max(entail, contradict)). Stride 2 roughly halves NLI calls versus stride 1.
+    - **Token budget:** a window that still exceeds 512 tokens together with the claim (very long sentences) is split into token chunks that fit `512 − claim tokens − special tokens`, overlapping by 32 tokens; the most decisive chunk wins. No evidence is silently truncated (Codex review on #23).
+    - Identical (window, claim) pairs are scored once per run (in-memory cache).
     - Premise and hypothesis both go through NFC → IndicNLP → ASCII digits.
     - The full claim × passage matrix is stored on every claim.
   - **Aggregate:** SUPPORTED if max entailment ≥ τₑ (evidence = that passage); else CONTRADICTED if max contradiction ≥ τ꜀; else UNSUPPORTED (closest passage kept for reference). The starting τₑ = τ꜀ = 0.5 come from config.

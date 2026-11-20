@@ -8,6 +8,7 @@ nli:
   max_length: 512
   batch_size: 16
   window_sentences: 3          # premise = up to 3 consecutive passage sentences
+  window_stride: 2             # windows start every 2 sentences (adjacent pairs still share one)
 normalize:                     # premise and hypothesis both go through this
   ascii_digits: true
 thresholds:
