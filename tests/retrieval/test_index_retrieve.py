@@ -196,7 +196,7 @@ def test_retriever_checks_index_and_embedder_agree(tmp_path):
     r = make_retriever()
     d = r.index.save(tmp_path / "idx")
     other = EmbedderConfig(name="fake", model_id="org/fake", revision="1" * 40, dim=16)
-    with pytest.raises(ValueError, match="revision"):
+    with pytest.raises(ValueError, match="different embedder config"):
         Retriever(Embedder(other, HashEncoder()), PassageIndex.load(d), CORPUS)
     with pytest.raises(ValueError, match="no text"):
         Retriever(Embedder(CFG, HashEncoder()), PassageIndex.load(d), {})
@@ -224,3 +224,27 @@ def test_retriever_requires_normalised_embeddings_and_built_metadata():
     bare = PassageIndex.build(unit_rows(3, 16), list(CORPUS))  # no embedder metadata
     with pytest.raises(ValueError, match="Retriever.build"):
         Retriever(Embedder(CFG, HashEncoder()), bare, CORPUS)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"query_prefix": "query: "}, {"passage_prefix": "passage: "}, {"max_seq_length": 64}],
+)
+def test_retriever_rejects_any_vector_affecting_config_change(tmp_path, change):
+    """Codex review on #20: same model and revision but different prefixes -> different vectors."""
+    d = make_retriever().index.save(tmp_path / "idx")
+    other = EmbedderConfig(**{**CFG.__dict__, **change})
+    with pytest.raises(ValueError, match="different embedder config"):
+        Retriever(Embedder(other, HashEncoder()), PassageIndex.load(d), CORPUS)
+
+
+def test_retriever_keeps_a_frozen_snapshot_of_the_passages(tmp_path):
+    """Codex review on #20: editing the caller's mapping later must not change results."""
+    d = make_retriever().index.save(tmp_path / "idx")
+    corpus = dict(CORPUS)
+    r = Retriever(Embedder(CFG, HashEncoder()), PassageIndex.load(d), corpus)
+    corpus["hi-p0000000002"] = "बदला हुआ पाठ"
+    hit = r.retrieve([CORPUS["hi-p0000000002"]], k=1)[0][0]
+    assert hit.text == CORPUS["hi-p0000000002"]
+    with pytest.raises(TypeError):
+        r.passages["hi-p0000000002"] = "x"  # read-only

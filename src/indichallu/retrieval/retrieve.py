@@ -8,6 +8,8 @@ schema's own :class:`~indichallu.data.schema.RetrievedPassage` objects.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict
+from types import MappingProxyType
 
 from indichallu.data.schema import RetrievedPassage
 from indichallu.retrieval.embed import Embedder
@@ -19,9 +21,12 @@ class Retriever:
 
     def __init__(self, embedder: Embedder, index: PassageIndex, passages: Mapping[str, str]):
         """Accept only a consistent triple. The index must come from :meth:`build` (so its
-        metadata names the embedder and fingerprints the passages), the embedder must be
-        the same model and revision and must L2-normalise (inner product = cosine), and
-        ``passages`` must be exactly the texts the vectors were built from."""
+        metadata records the full embedder config and fingerprints the passages), the
+        embedder's config must match it exactly (model, revision, prefixes, max length,
+        normalisation: anything that changes the vectors) and must L2-normalise (inner
+        product = cosine), and ``passages`` must be exactly the texts the vectors were
+        built from. A read-only snapshot of those texts is kept, so later edits to the
+        caller's mapping can't change what retrieval returns."""
         cfg = embedder.config
         if not cfg.normalize:
             raise ValueError(
@@ -29,11 +34,17 @@ class Retriever:
                 "product, which equals cosine only for unit vectors"
             )
         meta = index.meta
-        for key, value in (("model_id", cfg.model_id), ("revision", cfg.revision)):
-            if key not in meta:
-                raise ValueError(f"index metadata lacks {key!r}; build it with Retriever.build")
-            if meta[key] != value:
-                raise ValueError(f"index built with {key}={meta[key]!r}, embedder has {value!r}")
+        if "embedder_config" not in meta:
+            raise ValueError(
+                "index metadata lacks 'embedder_config'; build it with Retriever.build"
+            )
+        if meta["embedder_config"] != asdict(cfg):
+            diff = sorted(
+                k for k in asdict(cfg) if meta["embedder_config"].get(k) != asdict(cfg)[k]
+            )
+            raise ValueError(
+                f"index was built with a different embedder config (differs in {diff})"
+            )
         missing = [pid for pid in index.passage_ids if pid not in passages]
         if missing:
             raise ValueError(f"{len(missing)} indexed passages have no text, e.g. {missing[:3]}")
@@ -43,7 +54,8 @@ class Retriever:
                 "passage texts differ from the ones the index was built from "
                 "(passages_fingerprint mismatch)"
             )
-        self.embedder, self.index, self.passages = embedder, index, passages
+        self.embedder, self.index = embedder, index
+        self.passages = MappingProxyType(dict(zip(index.passage_ids, texts, strict=True)))
 
     @classmethod
     def build(
@@ -59,6 +71,7 @@ class Retriever:
                 "embedder": cfg.name,
                 "model_id": cfg.model_id,
                 "revision": cfg.revision,
+                "embedder_config": asdict(cfg),  # everything that affects the vectors
                 "passages_fingerprint": passages_fingerprint(ids, texts),
             },
         )
