@@ -269,6 +269,6 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
     - mE5 needs `"query: "` / `"passage: "`; bge-m3 needs none.
     - bge-m3 is capped at 2,048 tokens (supports 8,192); mE5's model maximum is 512, so **long passages are truncated for mE5**. This is a known limitation of the comparison.
   - **`Embedder`** adds the prefix, NFC-normalises the text (models see the source script, not the IndicNLP matching form), calls a pluggable encoder, and checks the shape, finiteness and dtype (float32). It L2-normalises in one place for every encoder, so inner product = cosine.
-  - **Disk cache:** keyed by SHA-256 over the config, the kind (query/passage) and the exact length-prefixed inputs. Any config or text change re-embeds; a corrupt or mismatched cache entry is recomputed. Writes are atomic.
+  - **Disk cache:** keyed by SHA-256 over the config, the kind (query/passage) and the exact length-prefixed inputs. Any config or text change re-embeds. Writes are atomic. **A cached array must pass the same checks as fresh output** (readable, shape, float32, finite, unit length when normalising); otherwise it counts as a miss and is recomputed, never raised or returned (Codex review on PR #19).
   - **Tests:** a deterministic fake encoder in CI; a `slow` test with the real `multilingual-e5-small` (pinned, MIT), run locally: a Hindi query ranks its relevant passage first.
 - **Consequences:** Passage chunking for mE5's 512-token limit is not done in M0. If mE5's numbers suffer from truncation, that is reported, not hidden.

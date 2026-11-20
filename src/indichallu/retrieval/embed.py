@@ -125,15 +125,35 @@ class Embedder:
             return None
         return self.cache_dir / self.config.name / f"{key}.npy"
 
+    def _read_cache(self, path: Path | None, n: int) -> np.ndarray | None:
+        """A cached array only if it passes the same checks as fresh output, else None.
+
+        Unreadable (e.g. truncated) files, a wrong shape or dtype, non-finite values, or
+        rows that aren't unit length when normalising are all treated as a cache miss.
+        """
+        if path is None or not path.exists():
+            return None
+        try:
+            cached = np.load(path, allow_pickle=False)
+        except (OSError, ValueError, EOFError):
+            return None
+        if cached.shape != (n, self.config.dim) or cached.dtype != np.float32:
+            return None
+        if not np.isfinite(cached).all():
+            return None
+        if self.config.normalize and n:
+            if not np.allclose(np.linalg.norm(cached, axis=1), 1.0, atol=1e-4):
+                return None
+        return cached
+
     def embed(self, texts: list[str], kind: Kind) -> np.ndarray:
         """Embed ``texts`` as queries or passages: float32 array of shape (n, dim)."""
         texts = list(texts)
         key = self.fingerprint(texts, kind)
         path = self._cache_path(key)
-        if path is not None and path.exists():
-            cached = np.load(path)
-            if cached.shape == (len(texts), self.config.dim) and cached.dtype == np.float32:
-                return cached
+        cached = self._read_cache(path, len(texts))
+        if cached is not None:
+            return cached
         if texts:
             vectors = np.asarray(self.encoder.encode(self._inputs(texts, kind), self.batch_size))
         else:

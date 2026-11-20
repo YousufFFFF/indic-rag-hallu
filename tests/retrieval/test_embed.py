@@ -178,3 +178,31 @@ def test_real_small_model_ranks_the_relevant_hindi_passage_first(tmp_path):
     scores = (p @ q.T).ravel()
     assert int(np.argmax(scores)) == 0, scores
     assert np.array_equal(e.embed_passages(passages), p)  # deterministic / cached
+
+
+@pytest.mark.parametrize(
+    "damage",
+    ["truncated", "garbage", "nan", "not-unit-length", "wrong-dtype"],
+)
+def test_damaged_cache_is_a_miss_not_an_error_or_a_bad_result(tmp_path, damage):
+    """Codex review on #19: cached arrays get the same checks as fresh output."""
+    enc = FakeEncoder(8)
+    e = Embedder(CFG, enc, cache_dir=tmp_path)
+    good = e.embed_passages(["क", "ख"])
+    (cache_file,) = (tmp_path / "fake").glob("*.npy")
+    if damage == "truncated":
+        cache_file.write_bytes(cache_file.read_bytes()[:-10])
+    elif damage == "garbage":
+        cache_file.write_bytes(b"not a numpy file at all")
+    elif damage == "nan":
+        bad = good.copy()
+        bad[1, 3] = np.nan
+        np.save(cache_file, bad)
+    elif damage == "not-unit-length":
+        np.save(cache_file, good * 2)
+    else:
+        np.save(cache_file, good.astype(np.float64))
+    again = e.embed_passages(["क", "ख"])
+    assert len(enc.calls) == 2  # recomputed
+    assert np.array_equal(again, good) and np.isfinite(again).all()
+    assert np.array_equal(e.embed_passages(["क", "ख"]), good) and len(enc.calls) == 2  # rewritten
