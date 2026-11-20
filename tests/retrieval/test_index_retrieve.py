@@ -70,13 +70,17 @@ def test_save_load_round_trip(tmp_path):
     loaded = PassageIndex.load(tmp_path / "idx", expect={"model_id": "org/m"})
     assert loaded.passage_ids == IDS and loaded.meta["size"] == 50
     assert loaded.search(q, 5) == index.search(q, 5)
-    index.save(tmp_path / "idx")  # overwriting an existing index works
-    assert sorted(f.name for f in (tmp_path / "idx").iterdir()) == [
-        "ids.json",
-        "index.faiss",
-        "meta.json",
-    ]
-    assert [f.name for f in tmp_path.iterdir()] == ["idx"]  # no temp dirs left
+    for _ in range(3):
+        index.save(tmp_path / "idx")  # overwriting an existing index works
+    names = sorted(f.name for f in (tmp_path / "idx").iterdir())
+    assert names[0] == "CURRENT" and len(names) == 3  # current + previous version only
+    assert all(n.startswith("v-") for n in names[1:])
+    assert [f.name for f in tmp_path.iterdir()] == ["idx"]
+    assert PassageIndex.load(tmp_path / "idx").search(q, 5) == index.search(q, 5)
+
+
+def _version_dir(d):
+    return d / (d / "CURRENT").read_text("utf-8").strip()
 
 
 def test_load_rejects_mismatches_and_damage(tmp_path):
@@ -84,14 +88,38 @@ def test_load_rejects_mismatches_and_damage(tmp_path):
     d = index.save(tmp_path / "idx")
     with pytest.raises(ValueError, match="expected"):
         PassageIndex.load(d, expect={"model_id": "org/other"})
-    (d / "ids.json").write_text(json.dumps(IDS[:4]), "utf-8")
+    v = _version_dir(d)
+    (v / "ids.json").write_text(json.dumps(IDS[:4]), "utf-8")
     with pytest.raises(ValueError, match="vectors but"):
         PassageIndex.load(d)
-    (d / "index.faiss").write_bytes(b"garbage")
+    (v / "index.faiss").write_bytes(b"garbage")
     with pytest.raises(ValueError, match="not a readable"):
         PassageIndex.load(d)
     with pytest.raises(ValueError, match="not a readable"):
         PassageIndex.load(tmp_path / "missing")
+    (d / "CURRENT").write_text("../../etc", "utf-8")
+    with pytest.raises(ValueError, match="bad CURRENT"):
+        PassageIndex.load(d)
+
+
+def test_failed_save_keeps_the_previous_index(tmp_path, monkeypatch):
+    """Codex review on #20: replacing an index must never lose the old one."""
+    import faiss
+
+    old = PassageIndex.build(unit_rows(5, 4, 1), IDS[:5], meta={"model_id": "org/m"})
+    d = old.save(tmp_path / "idx")
+    q = unit_rows(1, 4, 2)
+    new = PassageIndex.build(unit_rows(5, 4, 3), IDS[:5], meta={"model_id": "org/new"})
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(faiss, "write_index", boom)
+    with pytest.raises(RuntimeError):
+        new.save(d)
+    loaded = PassageIndex.load(d)  # the previous index is intact and current
+    assert loaded.meta["model_id"] == "org/m" and loaded.search(q, 3) == old.search(q, 3)
+    assert len(list(d.glob("v-*"))) == 1 and not list(d.glob(".CURRENT.*"))  # no leftovers
 
 
 def test_passages_fingerprint_is_unambiguous():
@@ -174,3 +202,25 @@ def test_retriever_checks_index_and_embedder_agree(tmp_path):
         Retriever(Embedder(CFG, HashEncoder()), PassageIndex.load(d), {})
     with pytest.raises(ValueError, match="one gold"):
         r.retrieve(["a", "b"], k=1, gold_passage_ids=["x"])
+
+
+def test_retriever_rejects_changed_passage_texts(tmp_path):
+    """Codex review on #20: same ids but different text must not pass as the indexed corpus."""
+    r = make_retriever()
+    d = r.index.save(tmp_path / "idx")
+    changed = {**CORPUS, "hi-p0000000002": "हिमालय भारत के दक्षिण में है।"}
+    with pytest.raises(ValueError, match="fingerprint"):
+        Retriever(Embedder(CFG, HashEncoder()), PassageIndex.load(d), changed)
+    Retriever(Embedder(CFG, HashEncoder()), PassageIndex.load(d), CORPUS)  # exact texts: ok
+
+
+def test_retriever_requires_normalised_embeddings_and_built_metadata():
+    """Codex review on #20: inner product is cosine only for unit vectors."""
+    raw = EmbedderConfig(
+        name="fake", model_id="org/fake", revision="0" * 40, dim=16, normalize=False
+    )
+    with pytest.raises(ValueError, match="normalise"):
+        Retriever.build(Embedder(raw, HashEncoder()), list(CORPUS), list(CORPUS.values()))
+    bare = PassageIndex.build(unit_rows(3, 16), list(CORPUS))  # no embedder metadata
+    with pytest.raises(ValueError, match="Retriever.build"):
+        Retriever(Embedder(CFG, HashEncoder()), bare, CORPUS)

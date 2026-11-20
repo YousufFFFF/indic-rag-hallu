@@ -18,14 +18,31 @@ class Retriever:
     """Embeds questions and searches a :class:`PassageIndex` over ``passages``."""
 
     def __init__(self, embedder: Embedder, index: PassageIndex, passages: Mapping[str, str]):
+        """Accept only a consistent triple. The index must come from :meth:`build` (so its
+        metadata names the embedder and fingerprints the passages), the embedder must be
+        the same model and revision and must L2-normalise (inner product = cosine), and
+        ``passages`` must be exactly the texts the vectors were built from."""
+        cfg = embedder.config
+        if not cfg.normalize:
+            raise ValueError(
+                f"embedder {cfg.name!r} must normalise vectors: the index ranks by inner "
+                "product, which equals cosine only for unit vectors"
+            )
+        meta = index.meta
+        for key, value in (("model_id", cfg.model_id), ("revision", cfg.revision)):
+            if key not in meta:
+                raise ValueError(f"index metadata lacks {key!r}; build it with Retriever.build")
+            if meta[key] != value:
+                raise ValueError(f"index built with {key}={meta[key]!r}, embedder has {value!r}")
         missing = [pid for pid in index.passage_ids if pid not in passages]
         if missing:
             raise ValueError(f"{len(missing)} indexed passages have no text, e.g. {missing[:3]}")
-        meta = index.meta
-        cfg = embedder.config
-        for key, value in (("model_id", cfg.model_id), ("revision", cfg.revision)):
-            if key in meta and meta[key] != value:
-                raise ValueError(f"index built with {key}={meta[key]!r}, embedder has {value!r}")
+        texts = [passages[pid] for pid in index.passage_ids]
+        if meta.get("passages_fingerprint") != passages_fingerprint(index.passage_ids, texts):
+            raise ValueError(
+                "passage texts differ from the ones the index was built from "
+                "(passages_fingerprint mismatch)"
+            )
         self.embedder, self.index, self.passages = embedder, index, passages
 
     @classmethod

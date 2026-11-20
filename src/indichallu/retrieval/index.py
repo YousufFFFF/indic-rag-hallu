@@ -5,10 +5,15 @@ inner product = cosine. The corpus is small (a few hundred passages per language
 there is no need for approximate search.
 
 Search results are made deterministic: hits are re-sorted by (score descending, corpus
-position), so equal scores always come back in the same order. A saved index is a
-directory with ``index.faiss`` (git-ignored by ``*.faiss``), ``ids.json`` and
-``meta.json``. The metadata records the embedder that produced the vectors and a
-fingerprint of the passages, and :meth:`PassageIndex.load` checks it all fits together.
+position), so equal scores always come back in the same order.
+
+A saved index is a directory holding versioned subdirectories ``v-*/`` (each with
+``index.faiss``, git-ignored by ``*.faiss``; ``ids.json``; ``meta.json``) and a
+``CURRENT`` file naming the active one. Saving writes a complete new version, then
+switches ``CURRENT`` with one atomic file replace, so a crash at any point leaves the
+previous index loadable and readers never see a half-written or missing index. The
+metadata records the embedder that produced the vectors and a fingerprint of the
+passages, and :meth:`PassageIndex.load` checks it all fits together.
 """
 
 from __future__ import annotations
@@ -116,21 +121,31 @@ class PassageIndex:
     def save(self, directory: str | Path) -> Path:
         """Write the index to ``directory`` (replaced atomically if it exists)."""
         directory = Path(directory)
-        directory.parent.mkdir(parents=True, exist_ok=True)
-        tmp = Path(tempfile.mkdtemp(dir=directory.parent, prefix=f".{directory.name}."))
+        directory.mkdir(parents=True, exist_ok=True)
+        current = directory / "CURRENT"
+        previous = current.read_text("utf-8").strip() if current.exists() else None
+        version = Path(tempfile.mkdtemp(dir=directory, prefix="v-"))
         try:
-            faiss.write_index(self.index, str(tmp / "index.faiss"))
-            (tmp / "ids.json").write_text(json.dumps(self.passage_ids, ensure_ascii=False), "utf-8")
+            faiss.write_index(self.index, str(version / "index.faiss"))
+            (version / "ids.json").write_text(
+                json.dumps(self.passage_ids, ensure_ascii=False), "utf-8"
+            )
             meta = {**self.meta, "format_version": FORMAT_VERSION}
-            (tmp / "meta.json").write_text(
+            (version / "meta.json").write_text(
                 json.dumps(meta, ensure_ascii=False, indent=2, sort_keys=True), "utf-8"
             )
-            if directory.exists():
-                shutil.rmtree(directory)
-            os.replace(tmp, directory)
+            pointer = directory / f".CURRENT.{version.name}.tmp"
+            pointer.write_text(version.name, "utf-8")
+            os.replace(pointer, current)  # the atomic switch
         except BaseException:
-            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(version, ignore_errors=True)
+            for leftover in directory.glob(f".CURRENT.{version.name}.tmp"):
+                leftover.unlink(missing_ok=True)
             raise
+        # Keep the new version and the one before it (a reader may be mid-load on it).
+        for old in directory.glob("v-*"):
+            if old.is_dir() and old.name not in (version.name, previous):
+                shutil.rmtree(old, ignore_errors=True)
         return directory
 
     @classmethod
@@ -139,9 +154,13 @@ class PassageIndex:
         (e.g. the embedder's model id and revision, or the passages fingerprint)."""
         directory = Path(directory)
         try:
-            index = faiss.read_index(str(directory / "index.faiss"))
-            ids = json.loads((directory / "ids.json").read_text("utf-8"))
-            meta = json.loads((directory / "meta.json").read_text("utf-8"))
+            version = (directory / "CURRENT").read_text("utf-8").strip()
+            if not version.startswith("v-") or "/" in version or "\\" in version:
+                raise ValueError(f"bad CURRENT pointer {version!r}")
+            files = directory / version
+            index = faiss.read_index(str(files / "index.faiss"))
+            ids = json.loads((files / "ids.json").read_text("utf-8"))
+            meta = json.loads((files / "meta.json").read_text("utf-8"))
         except (OSError, RuntimeError, ValueError) as e:
             raise ValueError(f"{directory}: not a readable saved index ({e})") from e
         if meta.get("format_version") != FORMAT_VERSION:
