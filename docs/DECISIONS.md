@@ -153,3 +153,13 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
       - in a harsher synthetic stress run (25% of chars edited, with edits reusing neighbouring letters), the remaining 70/5,000 word-provenance misses are all genuine ambiguity: in every one our alignment matches at least as many characters as the true edit history (62 more, 8 equal, 0 fewer).
   - Only the 9 configured languages are accepted, so IndicNLP's silent generic fallback can't happen. IndicNLP options are passed through; their names are checked, and library defaults are used unless set.
 - **Consequences:** Digit normalisation (T08) is a separate step that composes onto this map. `:` → visarga can alter text like `समय: 10`. This is IndicNLP's documented behaviour and is accepted for matching. Spans are always reported on the original.
+
+## D-013 · Indic digits → ASCII (2026-11-20)
+
+- **Context:** CLAUDE.md §3 row 2 requires Indic digit normalisation with offset maps. Passages and answers mix native and ASCII digits (`२१` vs `21`), which must compare equal for matching and for the NUMERICAL checks.
+- **Decision** (`src/indichallu/text/numerals.py`):
+  - `to_ascii_digits()` replaces each native decimal digit with its ASCII digit, one code point for one. The offset map is exact per character.
+  - **Default scope `"indic"`:** the decimal digits of the configured languages, i.e. 8 digit blocks, since hi and mr share Devanagari. The table is built from `configs/languages.yaml`, not hand-listed. `scope="all"` converts any Unicode decimal digit (`Nd`), e.g. Arabic-Indic or full-width.
+  - **Non-decimal numerals are not converted** (Tamil `௰` 10, `௱` 100, `௲` 1000; Bengali currency numerators). They are not positional digits, so a 1:1 swap would change the value. Parsing them is the typed NUMERICAL verifier's job (C2, M1).
+  - `normalize(..., ascii_digits=True)` chains this after NFC → IndicNLP with one composed map. It is **off by default** so the pipeline's output stays in the source script; matching and detection configs turn it on.
+- **Consequences:** Digit grouping and number parsing (Indian `1,00,000`, decimals, mixed scripts) are out of scope here and belong to the typed verifier.
