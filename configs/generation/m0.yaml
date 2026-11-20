@@ -1,9 +1,11 @@
 # M0 generator (DECISIONS D-003, D-023). Fixed decoding: every M0 answer uses exactly this.
-backend: ollama                      # native Ollama /api/chat (supports think: false)
-model: "qwen3:4b"
-ollama_digest: 359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7
-hf_source: Qwen/Qwen3-4B
-hf_revision: 1cfa9a7208912126459214e8b04321603b3df60c
+# NOTE: the Ollama tag `qwen3:4b` is Qwen3-4B-THINKING-2507 (always reasons, ignores
+# think: false), so M0 uses the non-thinking Instruct-2507 build instead (D-023).
+backend: ollama                      # native Ollama /api/chat
+model: "qwen3:4b-instruct-2507-q4_K_M"
+ollama_digest: 0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0
+hf_source: Qwen/Qwen3-4B-Instruct-2507
+hf_revision: cdbee75f17c01a7cc42f958dc650907174af0554
 licence: Apache-2.0
 base_url_env: OLLAMA_BASE_URL        # http://host.docker.internal:11434/v1 in the dev container
 prompt_template: hi                  # src/indichallu/generation/prompts/hi.txt
@@ -13,5 +15,5 @@ decoding:
   top_p: 1.0
   seed: 0
   max_new_tokens: 256
-  num_ctx: 8192                      # 3 passages of IndicQA length fit; Ollama's default (4096) may not
-  think: false                       # Qwen3 thinking mode off
+  num_ctx: 8192                      # 3 IndicQA passages are ~4k tokens; Ollama's default (4096) truncates
+  think: false                       # Instruct-2507 has no thinking mode; kept explicit

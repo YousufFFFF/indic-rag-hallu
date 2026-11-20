@@ -290,7 +290,8 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 
 - **Context:** Deck slide 15 / CLAUDE.md §3 rows 5–6: the prompt is query + retrieved context in the source language; one LLM under fixed decoding; outputs cached and never recomputed.
 - **Decision** (`src/indichallu/generation/`, `configs/generation/m0.yaml`):
-  - **Generator** `qwen3:4b` via Ollama, pinned by its **Ollama manifest digest** (`359d7dd4…`) plus the HF source revision (`Qwen/Qwen3-4B@1cfa9a72…`, Apache-2.0).
+  - **Generator** `qwen3:4b-instruct-2507-q4_K_M` via Ollama, pinned by its **Ollama digest** (`0edcdef3…`) plus the HF source `Qwen/Qwen3-4B-Instruct-2507@cdbee75f…` (Apache-2.0, ungated).
+  - **Correction (found while testing):** the Ollama tag `qwen3:4b` first chosen in D-003 is **Qwen3-4B-Thinking-2507**: its model layer is identical to `qwen3:4b-thinking-2507-q4_K_M`, and Ollama reports `finetune: Thinking`. It always writes (English) reasoning as its answer, even with `think: false` or a `/no_think` system message, so the answers were unusable. The `hf_source` first recorded (`Qwen/Qwen3-4B`) was also wrong. Switched to the non-thinking Instruct-2507 build of the same size and licence, which answers directly in Hindi.
   - **Fixed decoding:** temperature 0, top_p 1, seed 0, max 256 new tokens, `num_ctx` 8192, **thinking off** (`think: false`, plus a defensive strip of any `<think>` block).
   - **Context:** the top 3 retrieved passages.
   - **Backends:** native Ollama `/api/chat` (it supports `think: false`; sends UTF-8 JSON), OpenAI-compatible (for vLLM on the T4), and a mock. The 4-bit HF backend (and logits for B4) comes in M1.

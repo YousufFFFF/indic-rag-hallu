@@ -118,7 +118,8 @@ def test_ollama_backend_sends_fixed_decoding_and_utf8(fake_ollama):
 
 def test_m0_config_is_pinned_and_fixed():
     cfg = load_generator_config("m0")
-    assert cfg.model == "qwen3:4b" and len(cfg.ollama_digest) == 64
+    assert cfg.model == "qwen3:4b-instruct-2507-q4_K_M" and len(cfg.ollama_digest) == 64
+    assert cfg.hf_source == "Qwen/Qwen3-4B-Instruct-2507"
     assert len(cfg.hf_revision) == 40 and cfg.licence == "Apache-2.0"
     assert cfg.decoding["temperature"] == 0.0 and cfg.decoding["think"] is False
     assert cfg.record_info()["revision"] == cfg.ollama_digest
