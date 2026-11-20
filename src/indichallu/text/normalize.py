@@ -14,7 +14,7 @@ text maps straight back to the original. Apply the same pipeline to everything t
 compared (claims and passages); the output is a matching form, not guaranteed NFC
 (IndicNLP decomposes e.g. U+0929 ``ऩ``, which NFC keeps composed).
 
->>> r = normalize("क‌ख|", "hi")    # ZWNJ removed, "|" becomes a danda
+>>> r = normalize("क\u200cख|", "hi")    # ZWNJ removed, "|" becomes a danda
 >>> r.text == "कख।"
 True
 >>> r.offsets.to_source(2, 3)            # the danda came from the "|" at index 3

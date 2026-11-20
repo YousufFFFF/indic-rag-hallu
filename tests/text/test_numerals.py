@@ -86,7 +86,7 @@ def test_both_functions_reject_bad_scopes_consistently(bad):
 @pytest.mark.parametrize("seed", range(100))
 def test_random_text_is_length_preserving_and_exact(seed):
     rng = random.Random(seed)
-    pool = list(indic_digit_table()) + list("0123456789 अकখটமతಕമગਕ,.") + ["‌"]
+    pool = list(indic_digit_table()) + list("0123456789 अकখটமతಕമગਕ,.") + ["\u200c"]
     text = "".join(rng.choice(pool) for _ in range(rng.randint(0, 40)))
     r = to_ascii_digits(text)
     assert len(r.text) == len(text)
@@ -108,7 +108,7 @@ def test_normalize_keeps_native_digits_by_default():
 def test_worked_example_with_native_digits_and_noise():
     """Slide-17 answer with Devanagari digits, a ZWNJ and a pipe. After the full pipeline
     the claim reads with ASCII digits and maps back to the original slice."""
-    zwnj = "‌"
+    zwnj = "\u200c"
     original = f"यह योजना राज्य सरकार द्वारा चलाई जाती है और आवेदक{zwnj} की आयु २१ वर्ष होनी चाहिए|"
     r = normalize(original, "hi", ascii_digits=True)
     claim = "आवेदक की आयु 21 वर्ष होनी चाहिए"
