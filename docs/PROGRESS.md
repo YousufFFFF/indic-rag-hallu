@@ -183,6 +183,16 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - B1 (sentence-level);
   - val-only threshold tuning.
   - **The slide-17 worked example passes with the real NLI model** (claim 1 SUPPORTED 0.79; claim 2 UNSUPPORTED, NUMERICAL).
+- **Generator fix (PR #22):** the Ollama tag `qwen3:4b` is **Qwen3-4B-Thinking-2507**. It wrote English reasoning instead of Hindi answers despite `think: false` and `/no_think`, and its recorded HF source was wrong. Switched to `qwen3:4b-instruct-2507-q4_K_M` (Qwen3-4B-Instruct-2507, Apache-2.0), which answers in Hindi. The unusable sample run was stopped.
+- **Bundle 4, pilot + evaluation (T19, T28–T30, T34–T35, T37–T39):**
+  - typed NUMERICAL/TEMPORAL injection that keeps the digit script;
+  - the pilot builder (faithful gold sentence vs injected, gold-in-top-3 only, val/test);
+  - `scripts/run_pilot_eval.py`: retrieval metrics on all test questions, our detector vs B1, val-tuned thresholds, test metrics → `results/m0/pilot.json`;
+  - `scripts/make_tables.py` (README block, `--check` in CI);
+  - README with architecture, quickstart and the generated results block;
+  - Gradio demo (`demo/app.py`) with tested rendering (`indichallu.viz`).
+- Retrieval in M0 uses mE5-small as a labelled stand-in, since bge-m3 and mE5-large were not approved.
+- Pending human checks: Hindi prompt review (T22) and the spot-check of generated answers (T36), both sent to the maintainer.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
