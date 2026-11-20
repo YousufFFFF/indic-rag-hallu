@@ -46,7 +46,8 @@ Every model and dataset this project plans to use. **Checked against the Hugging
 
 | Ollama tag | HF source model | HF revision | Licence | Gated | Params / download | Fits 4 GB laptop? | Notes |
 |---|---|---|---|---|---|---|---|
-| `qwen3:4b` | `Qwen/Qwen3-4B` | `1cfa9a720891` | Apache-2.0 | no | 4.02B; Ollama model layer **2.50 GB** (Q4) | yes (est.; measure at T23) | **M0 generator.** Card states 100+ languages. Hybrid "thinking" model: thinking is switched **off** for the fixed decoding config. Pin the Ollama manifest digest (recorded at T23) in run metadata alongside the HF revision. |
+| `qwen3:4b-instruct-2507-q4_K_M` | `Qwen/Qwen3-4B-Instruct-2507` | `cdbee75f17c0` | Apache-2.0 | no | 4.0B; Ollama model layer **2.50 GB** (Q4_K_M); digest `0edcdef3…` | runs, but Ollama doesn't detect the GPU: CPU only | **M0 generator.** Non-thinking; answers directly in Hindi. |
+| `qwen3:4b` | `Qwen/Qwen3-4B-Thinking-2507` (**not** `Qwen/Qwen3-4B`) | — | Apache-2.0 | no | Ollama layer 2.50 GB | — | **Rejected:** the tag is the Thinking-2507 model and always writes reasoning as its answer, even with `think: false` (D-023). |
 | `qwen2.5vl:3b` | `Qwen/Qwen2.5-VL-3B-Instruct` | `66285546d2b8` | ⚠ **Qwen Research Licence** (non-commercial) | no | 3.75B; Ollama layer 3.20 GB | yes | **Rejected for M0**: the licence isn't open source, and its vision encoder goes unused for text-only RAG. |
 | `qwen2.5:1.5b` | `Qwen/Qwen2.5-1.5B-Instruct` | `989aa7980e4c` | Apache-2.0 | no | 1.54B; Ollama layer 0.99 GB | yes | Fast fallback for development and the CPU-only demo. |
 | `qwen2.5vl:7b` / `qwen2.5:7b` | `Qwen/Qwen2.5-VL-7B-Instruct` / `Qwen/Qwen2.5-7B-Instruct` | `cc594898137f` / `a09a35458c70` | Apache-2.0 | no | Ollama layers 5.97 GB / 4.68 GB | no (partial CPU offload, slow) | Run on the T4 instead. |
