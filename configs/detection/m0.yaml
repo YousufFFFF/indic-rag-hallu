@@ -1,0 +1,16 @@
+# M0 detector (DECISIONS D-024). Thresholds here are starting values; the values used for
+# reported results are tuned on the VAL split only (scripts/tune_threshold.py) and the
+# tuned values are recorded in docs/DECISIONS.md.
+nli:
+  model_id: MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7
+  revision: b5113eb38ab63efdd7f280f8c144ea8b13f978ce
+  licence: MIT
+  max_length: 512
+  batch_size: 16
+  window_sentences: 3          # premise = up to 3 consecutive passage sentences
+  window_stride: 2             # windows start every 2 sentences (adjacent pairs still share one)
+normalize:                     # premise and hypothesis both go through this
+  ascii_digits: true
+thresholds:
+  entail: 0.5                  # claim SUPPORTED if max entailment over passages >= this
+  contradict: 0.5              # else CONTRADICTED if max contradiction >= this

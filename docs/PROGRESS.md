@@ -175,6 +175,14 @@ Dated log of what was done, what broke, and what's next. Newest first.
 - **Bundle 1, metrics (T16–T18, T20):** `src/indichallu/eval/{retrieval,detection,spans,fairness}.py` (D-022).
   - Recall@k / nDCG@k / MRR; P/R/F1 / balanced accuracy / AUROC with `None` when undefined; character span-F1, token IoU, exact-span match, all per type; per-language / pooled / macro / worst.
   - 33 tests: hand-computed values, 20 random comparisons with scikit-learn, the slide-17 worked example as a perfect detection, partial overlap, wrong type, CONTRADICTED, two-language fairness.
+- **Bundle 2, generation (T21–T23)**, PR #22: Ollama/OpenAI-compatible/mock backends, Hindi prompt (pending review), resumable cache, `scripts/generate_answers.py`. **Ollama doesn't detect the GPU**, so CPU only (~5 min per 3-passage Hindi prompt). A seeded 60-question sample is generating in the background.
+- **Bundle 3, detection (T24–T27, T33–T34):**
+  - rule-based Hindi decomposer;
+  - windowed mDeBERTa alignment against every passage;
+  - three-verdict aggregation;
+  - B1 (sentence-level);
+  - val-only threshold tuning.
+  - **The slide-17 worked example passes with the real NLI model** (claim 1 SUPPORTED 0.79; claim 2 UNSUPPORTED, NUMERICAL).
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
