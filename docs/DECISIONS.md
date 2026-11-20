@@ -231,3 +231,16 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - Retrieval evaluation is unaffected: the gold *passage* is the paragraph itself.
   - These counts belong in the dataset card (T13).
   - Other languages may behave differently; the loader reports counts per status, so check them before enabling a language.
+
+## D-018 · Train/val/test split (2026-11-20)
+
+- **Context:** CLAUDE.md §4.4: split by passage/question, so the same passage is never in both train and test. Thresholds are tuned on val only (§3 row 9).
+- **Decision** (`src/indichallu/data/split.py`, `configs/data/splits.yaml`):
+  - **Ratios** 60/20/20, **seed 13**, both in config.
+  - **Group by article title.** A passage with no title is its own group. IndicQA Hindi has one paragraph per article, but other languages may not.
+  - **Groups sharing an identical question text are merged first.** The leakage check found 3 Hindi questions repeated word for word across articles (e.g. "भारत को स्वतंत्रता किस वर्ष मिली थी?"), which the plain split put in different splits.
+  - **Deterministic without `random`:** groups are ranked by `sha256("<seed>:<key>")` and cut into exact counts (largest remainder). This is independent of input order, Python version and platform. A test pins a concrete assignment.
+  - Every split with a non-zero ratio gets ≥ 1 group when possible. Plain largest-remainder gives 2/1/0 for 3 groups.
+  - **`check_no_leakage()`** fails if any passage is unassigned, or if an article, identical passage text or identical question text spans two splits.
+- **Hindi result:** 258 groups (from 261 articles). Passages train/val/test 156/52/53; questions 950/282/315; unanswerable 303/93/99 (31–33% in each split). No leakage.
+- **Consequences:** Changing the seed, ratios or grouping changes every split and every reported number, so it needs a new decision entry. Thresholds may only be tuned on `val` (enforced later in T34).

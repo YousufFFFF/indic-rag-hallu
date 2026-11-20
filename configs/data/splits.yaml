@@ -1,0 +1,8 @@
+# Train/val/test split (DECISIONS D-018). Assignment is deterministic: groups are ranked
+# by sha256("<seed>:<group key>") and cut into exact counts. Changing the seed or the
+# ratios changes the split, so record any change in DECISIONS.md.
+seed: 13
+ratios: {train: 0.6, val: 0.2, test: 0.2}
+# Unit kept together in one split: "title" (whole article; falls back to the passage if
+# a title is empty) or "passage".
+group_by: title
