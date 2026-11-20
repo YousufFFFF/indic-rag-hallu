@@ -96,6 +96,27 @@ def is_valid(path: str | Path, *, sha256: str, size: int | None = None) -> bool:
     return sha256_file(path) == sha256
 
 
+def verified_local_path(
+    dataset: PinnedDataset, lang: str, data_root: str | Path = DEFAULT_DATA_ROOT
+) -> Path:
+    """The local copy of ``lang``'s file, checked against its pinned size and SHA-256.
+
+    Use this, not :meth:`PinnedDataset.local_path`, before reading cached data: a file
+    changed or corrupted after download must not be analysed as if it were the pinned
+    revision. Raises FileNotFoundError if missing, :class:`ChecksumError` if it differs.
+    """
+    path = dataset.local_path(lang, data_root)
+    if not path.is_file():
+        raise FileNotFoundError(f"{path} not downloaded (python scripts/download_indicqa.py)")
+    pinned = dataset.files[lang]
+    if not is_valid(path, sha256=pinned.sha256, size=pinned.size):
+        raise ChecksumError(
+            f"{path} does not match the pinned size/sha256 for {dataset.repo}@"
+            f"{dataset.revision[:12]}; delete it and re-run scripts/download_indicqa.py"
+        )
+    return path
+
+
 def fetch(
     url: str,
     dest: str | Path,

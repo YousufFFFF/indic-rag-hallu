@@ -206,7 +206,7 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - The User-Agent is generic, with no personal details.
   - **`scripts/download_indicqa.py`** downloads the *enabled* languages by default (`--lang`, `--all` otherwise).
   - **Tests** use a local HTTP server, so CI needs no network. A `network`-marked test (excluded by default; `pytest -m network`) checks the real Hindi file against its pin.
-- **Consequences:** A changed upstream file fails loudly instead of silently changing results. New datasets get their own pinned config.
+- **Consequences:** A changed upstream file fails loudly instead of silently changing results. New datasets get their own pinned config. **Code that reads cached data goes through `verified_local_path()`**, which re-checks size and SHA-256, so a file changed or corrupted after download is never analysed as the pinned revision (Codex review on PR #18). `corpus_stats.py compute` records the hash of the bytes it actually read.
 - **Lesson:** my first, text-sliced reading of the HF tree listing paired each path with the *next* file's size and hash. The pins come from properly parsed JSON. The config test also rejects duplicate hashes, which catches copy-paste mistakes.
 
 ## D-017 · IndicQA loading and answer-offset realignment (2026-11-20)

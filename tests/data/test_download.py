@@ -157,3 +157,40 @@ def test_real_hindi_download_matches_pin(tmp_path):
     f = ds.files["hi"]
     path, _ = fetch(ds.url("hi"), ds.local_path("hi", tmp_path), sha256=f.sha256, size=f.size)
     assert sha256_file(path) == f.sha256
+
+
+# --- verified_local_path (Codex review on #18) ------------------------------------------
+
+
+def _tiny_dataset(tmp_path, payload=PAYLOAD):
+    from indichallu.data.download import PinnedDataset, PinnedFile
+
+    ds = PinnedDataset(
+        repo="org/Tiny",
+        repo_type="dataset",
+        revision="a" * 40,
+        licence="CC0",
+        files={
+            "hi": PinnedFile("data/x.hi.json", len(payload), hashlib.sha256(payload).hexdigest())
+        },
+    )
+    return ds, ds.local_path("hi", tmp_path)
+
+
+def test_verified_local_path_accepts_only_the_pinned_bytes(tmp_path):
+    from indichallu.data.download import verified_local_path
+
+    ds, path = _tiny_dataset(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        verified_local_path(ds, "hi", tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(PAYLOAD)
+    assert verified_local_path(ds, "hi", tmp_path) == path
+    changed = PAYLOAD.replace(b'"1"', b'"2"')  # same size, different content
+    assert changed != PAYLOAD and len(changed) == len(PAYLOAD)
+    path.write_bytes(changed)
+    with pytest.raises(ChecksumError):
+        verified_local_path(ds, "hi", tmp_path)
+    path.write_bytes(PAYLOAD + b" ")  # different size
+    with pytest.raises(ChecksumError):
+        verified_local_path(ds, "hi", tmp_path)

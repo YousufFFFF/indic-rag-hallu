@@ -120,3 +120,23 @@ def test_render_check_cli_passes_on_the_committed_card():
         text=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_compute_refuses_a_cached_file_that_differs_from_its_pin(tmp_path):
+    """Codex review on #18: a changed local file must not be analysed as the pinned one."""
+    import importlib.util
+
+    from indichallu.data.download import ChecksumError, load_pinned_dataset
+
+    spec = importlib.util.spec_from_file_location(
+        "corpus_stats", ROOT / "scripts" / "corpus_stats.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    path = load_pinned_dataset().local_path("hi", tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"version": "1.0", "data": []}), "utf-8")
+    with pytest.raises(ChecksumError):
+        module.compute(["hi"], data_root=tmp_path)
+    assert module.compute(["bn"], data_root=tmp_path)["languages"] == {}  # missing: skipped

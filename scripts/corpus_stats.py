@@ -15,7 +15,12 @@ import json
 import sys
 
 import indichallu
-from indichallu.data.download import DEFAULT_DATA_ROOT, load_pinned_dataset
+from indichallu.data.download import (
+    DEFAULT_DATA_ROOT,
+    load_pinned_dataset,
+    sha256_file,
+    verified_local_path,
+)
 from indichallu.data.loaders.indicqa import load_indicqa
 from indichallu.data.split import load_split_config
 from indichallu.data.stats import (
@@ -28,7 +33,9 @@ from indichallu.data.stats import (
 from indichallu.languages import load_languages
 
 
-def compute(langs: list[str] | None) -> dict:
+def compute(langs: list[str] | None, data_root=DEFAULT_DATA_ROOT) -> dict:
+    """Stats for each downloaded language. A language that isn't downloaded is skipped;
+    one whose cached file doesn't match its pin is an error (never silently analysed)."""
     dataset = load_pinned_dataset()
     split_config = load_split_config()
     languages = load_languages()
@@ -46,13 +53,14 @@ def compute(langs: list[str] | None) -> dict:
         "languages": {},
     }
     for code in langs or list(languages):
-        path = dataset.local_path(code, DEFAULT_DATA_ROOT)
-        if not path.exists():
-            print(f"  {code}: skipped (not downloaded: {path})", file=sys.stderr)
+        if not dataset.local_path(code, data_root).exists():
+            print(f"  {code}: skipped (not downloaded)", file=sys.stderr)
             continue
+        path = verified_local_path(dataset, code, data_root)  # raises on a changed file
         ds = load_indicqa(path, code)
         out["languages"][code] = compute_language_stats(ds, languages[code], split_config)
-        out["provenance"]["file_sha256"][code] = dataset.files[code].sha256
+        # record the hash of the bytes actually analysed (equal to the pin, checked above)
+        out["provenance"]["file_sha256"][code] = sha256_file(path)
         print(f"  {code}: {ds.stats['passages']} passages, {ds.stats['questions']} questions")
     return out
 
