@@ -272,3 +272,20 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Disk cache:** keyed by SHA-256 over the config, the kind (query/passage) and the exact length-prefixed inputs. Any config or text change re-embeds. Writes are atomic. **A cached array must pass the same checks as fresh output** (readable, shape, float32, finite, unit length when normalising); otherwise it counts as a miss and is recomputed, never raised or returned (Codex review on PR #19).
   - **Tests:** a deterministic fake encoder in CI; a `slow` test with the real `multilingual-e5-small` (pinned, MIT), run locally: a Hindi query ranks its relevant passage first.
 - **Consequences:** Passage chunking for mE5's 512-token limit is not done in M0. If mE5's numbers suffer from truncation, that is reported, not hidden.
+
+## D-022 · Evaluation metrics (2026-11-20)
+
+- **Context:** Deck slide 21; CLAUDE.md §3 rows 13–16. Every metric is reported per language and pooled, and the positive class (hallucinated) is the minority.
+- **Decision** (`src/indichallu/eval/`):
+  - **Retrieval** (`retrieval.py`): Recall@k, nDCG@k (binary relevance, log2 discount) and MRR, with relevance = `is_gold`. IndicQA has exactly one gold passage per question. Queries with no relevant passage are excluded and counted. **A retrieved list shorter than k raises**, unless the corpus itself is smaller, because it would silently deflate Recall@k.
+  - **Detection** (`detection.py`): precision, recall and F1 of the *hallucinated* class, balanced accuracy, and AUROC on a continuous score. F1 = 2TP/(2TP+FP+FN), checked against scikit-learn.
+    - Response level: gold `labels.response`; predicted label = any non-SUPPORTED claim; score = max claim score (`1 − entail`, else 1/0 from the verdict).
+    - **Undefined metrics are `None`, never a made-up 0 or 1**: AUROC with one class, precision with no predictions, and so on.
+  - **Spans** (`spans.py`, on original offsets): predicted spans are non-SUPPORTED claims (CONTRADICTED counts).
+    - span-level F1 over hallucinated **characters**;
+    - **token IoU** over hallucinated tokens from `text.sentseg.tokens`; a token counts if any of its characters does;
+    - **exact-span** P/R/F1;
+    - all micro-averaged;
+    - **per type:** gold spans of a type vs claims predicted with that type, plus `ALL`.
+  - **Fairness** (`fairness.py`): `by_language(records, metric_fn)` gives per-language, pooled, macro (mean over languages where defined, with `macro_n`) and worst-language for every rate metric. Counts are not averaged. It works with one language (M0).
+- **Consequences:** Results tables are generated from these functions only, never computed ad hoc. Claim-level detection beyond spans (e.g. per-claim AUROC) can be added in M1 without changing these definitions.

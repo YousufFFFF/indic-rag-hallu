@@ -158,6 +158,10 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - 16 unit tests with a fake encoder (prefixes, NFC, normalisation, empty input, bad encoder output, cache hits and misses for every config change, key collisions, corrupt cache).
   - Real `multilingual-e5-small` slow test passes locally: a Hindi query ranks its passage first.
   - 2,107 tests pass.
+- **M0 sprint (user: finish M0 today; remaining tasks bundled into ~5 PRs).** `qwen3:4b` pulled in Ollama (4.0B, Q4_K_M, 2.5 GB).
+- **Bundle 1, metrics (T16–T18, T20):** `src/indichallu/eval/{retrieval,detection,spans,fairness}.py` (D-022).
+  - Recall@k / nDCG@k / MRR; P/R/F1 / balanced accuracy / AUROC with `None` when undefined; character span-F1, token IoU, exact-span match, all per type; per-language / pooled / macro / worst.
+  - 33 tests: hand-computed values, 20 random comparisons with scikit-learn, the slide-17 worked example as a perfect detection, partial overlap, wrong type, CONTRADICTED, two-language fairness.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
