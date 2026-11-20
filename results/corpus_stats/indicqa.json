@@ -1,0 +1,370 @@
+{
+  "languages": {
+    "bn": {
+      "answer_offsets": {
+        "ambiguous": 1,
+        "exact": 235,
+        "nearest": 183,
+        "not_found": 0,
+        "unique": 844
+      },
+      "answerable": 1263,
+      "enabled": false,
+      "family": "indo-aryan",
+      "lang": "bn",
+      "median_passage_chars": 1572.5,
+      "median_passage_sentences": 16.0,
+      "median_passage_tokens": 271.0,
+      "median_question_tokens": 9.0,
+      "name": "Bengali",
+      "passages": 250,
+      "questions": 1763,
+      "splits": {
+        "test": {
+          "passages": 51,
+          "questions": 344,
+          "unanswerable": 92
+        },
+        "train": {
+          "passages": 149,
+          "questions": 1069,
+          "unanswerable": 304
+        },
+        "val": {
+          "passages": 50,
+          "questions": 350,
+          "unanswerable": 104
+        }
+      },
+      "unanswerable": 500
+    },
+    "gu": {
+      "answer_offsets": {
+        "ambiguous": 0,
+        "exact": 345,
+        "nearest": 133,
+        "not_found": 3,
+        "unique": 792
+      },
+      "answerable": 1273,
+      "enabled": false,
+      "family": "indo-aryan",
+      "lang": "gu",
+      "median_passage_chars": 841.5,
+      "median_passage_sentences": 9.0,
+      "median_passage_tokens": 158.5,
+      "median_question_tokens": 10.0,
+      "name": "Gujarati",
+      "passages": 248,
+      "questions": 2017,
+      "splits": {
+        "test": {
+          "passages": 49,
+          "questions": 418,
+          "unanswerable": 159
+        },
+        "train": {
+          "passages": 150,
+          "questions": 1208,
+          "unanswerable": 441
+        },
+        "val": {
+          "passages": 49,
+          "questions": 391,
+          "unanswerable": 144
+        }
+      },
+      "unanswerable": 744
+    },
+    "hi": {
+      "answer_offsets": {
+        "ambiguous": 1,
+        "exact": 158,
+        "nearest": 218,
+        "not_found": 0,
+        "unique": 675
+      },
+      "answerable": 1052,
+      "enabled": true,
+      "family": "indo-aryan",
+      "lang": "hi",
+      "median_passage_chars": 1997.0,
+      "median_passage_sentences": 19.0,
+      "median_passage_tokens": 424.0,
+      "median_question_tokens": 11.0,
+      "name": "Hindi",
+      "passages": 261,
+      "questions": 1547,
+      "splits": {
+        "test": {
+          "passages": 53,
+          "questions": 315,
+          "unanswerable": 99
+        },
+        "train": {
+          "passages": 156,
+          "questions": 950,
+          "unanswerable": 303
+        },
+        "val": {
+          "passages": 52,
+          "questions": 282,
+          "unanswerable": 93
+        }
+      },
+      "unanswerable": 495
+    },
+    "kn": {
+      "answer_offsets": {
+        "ambiguous": 1,
+        "exact": 255,
+        "nearest": 83,
+        "not_found": 26,
+        "unique": 773
+      },
+      "answerable": 1138,
+      "enabled": false,
+      "family": "dravidian",
+      "lang": "kn",
+      "median_passage_chars": 787.0,
+      "median_passage_sentences": 9.0,
+      "median_passage_tokens": 113.0,
+      "median_question_tokens": 7.0,
+      "name": "Kannada",
+      "passages": 257,
+      "questions": 1517,
+      "splits": {
+        "test": {
+          "passages": 51,
+          "questions": 302,
+          "unanswerable": 84
+        },
+        "train": {
+          "passages": 154,
+          "questions": 898,
+          "unanswerable": 215
+        },
+        "val": {
+          "passages": 52,
+          "questions": 317,
+          "unanswerable": 80
+        }
+      },
+      "unanswerable": 379
+    },
+    "ml": {
+      "answer_offsets": {
+        "ambiguous": 0,
+        "exact": 124,
+        "nearest": 103,
+        "not_found": 43,
+        "unique": 831
+      },
+      "answerable": 1101,
+      "enabled": false,
+      "family": "dravidian",
+      "lang": "ml",
+      "median_passage_chars": 1864.0,
+      "median_passage_sentences": 20.0,
+      "median_passage_tokens": 221.0,
+      "median_question_tokens": 9.0,
+      "name": "Malayalam",
+      "passages": 247,
+      "questions": 1589,
+      "splits": {
+        "test": {
+          "passages": 49,
+          "questions": 329,
+          "unanswerable": 98
+        },
+        "train": {
+          "passages": 148,
+          "questions": 926,
+          "unanswerable": 286
+        },
+        "val": {
+          "passages": 50,
+          "questions": 334,
+          "unanswerable": 104
+        }
+      },
+      "unanswerable": 488
+    },
+    "mr": {
+      "answer_offsets": {
+        "ambiguous": 0,
+        "exact": 234,
+        "nearest": 154,
+        "not_found": 15,
+        "unique": 705
+      },
+      "answerable": 1108,
+      "enabled": false,
+      "family": "indo-aryan",
+      "lang": "mr",
+      "median_passage_chars": 1305.5,
+      "median_passage_sentences": 15.0,
+      "median_passage_tokens": 214.0,
+      "median_question_tokens": 9.0,
+      "name": "Marathi",
+      "passages": 250,
+      "questions": 1604,
+      "splits": {
+        "test": {
+          "passages": 50,
+          "questions": 321,
+          "unanswerable": 97
+        },
+        "train": {
+          "passages": 150,
+          "questions": 968,
+          "unanswerable": 304
+        },
+        "val": {
+          "passages": 50,
+          "questions": 315,
+          "unanswerable": 95
+        }
+      },
+      "unanswerable": 496
+    },
+    "pa": {
+      "answer_offsets": {
+        "ambiguous": 1,
+        "exact": 212,
+        "nearest": 137,
+        "not_found": 4,
+        "unique": 827
+      },
+      "answerable": 1181,
+      "enabled": false,
+      "family": "indo-aryan",
+      "lang": "pa",
+      "median_passage_chars": 1156.0,
+      "median_passage_sentences": 11.0,
+      "median_passage_tokens": 252.0,
+      "median_question_tokens": 12.0,
+      "name": "Punjabi",
+      "passages": 241,
+      "questions": 1542,
+      "splits": {
+        "test": {
+          "passages": 48,
+          "questions": 298,
+          "unanswerable": 78
+        },
+        "train": {
+          "passages": 145,
+          "questions": 931,
+          "unanswerable": 215
+        },
+        "val": {
+          "passages": 48,
+          "questions": 313,
+          "unanswerable": 68
+        }
+      },
+      "unanswerable": 361
+    },
+    "ta": {
+      "answer_offsets": {
+        "ambiguous": 0,
+        "exact": 222,
+        "nearest": 168,
+        "not_found": 30,
+        "unique": 857
+      },
+      "answerable": 1277,
+      "enabled": false,
+      "family": "dravidian",
+      "lang": "ta",
+      "median_passage_chars": 1854.0,
+      "median_passage_sentences": 16.0,
+      "median_passage_tokens": 246.0,
+      "median_question_tokens": 7.0,
+      "name": "Tamil",
+      "passages": 253,
+      "questions": 1804,
+      "splits": {
+        "test": {
+          "passages": 50,
+          "questions": 346,
+          "unanswerable": 110
+        },
+        "train": {
+          "passages": 152,
+          "questions": 1098,
+          "unanswerable": 310
+        },
+        "val": {
+          "passages": 51,
+          "questions": 360,
+          "unanswerable": 107
+        }
+      },
+      "unanswerable": 527
+    },
+    "te": {
+      "answer_offsets": {
+        "ambiguous": 2,
+        "exact": 165,
+        "nearest": 306,
+        "not_found": 6,
+        "unique": 919
+      },
+      "answerable": 1398,
+      "enabled": false,
+      "family": "dravidian",
+      "lang": "te",
+      "median_passage_chars": 2203.0,
+      "median_passage_sentences": 26.0,
+      "median_passage_tokens": 333.5,
+      "median_question_tokens": 10.0,
+      "name": "Telugu",
+      "passages": 250,
+      "questions": 1734,
+      "splits": {
+        "test": {
+          "passages": 50,
+          "questions": 348,
+          "unanswerable": 64
+        },
+        "train": {
+          "passages": 150,
+          "questions": 1037,
+          "unanswerable": 200
+        },
+        "val": {
+          "passages": 50,
+          "questions": 349,
+          "unanswerable": 72
+        }
+      },
+      "unanswerable": 336
+    }
+  },
+  "provenance": {
+    "file_sha256": {
+      "bn": "a0e65c5b28e90d1912c0ec114eba5fa81aa39cbcf76ec968412c7d77900d666b",
+      "gu": "0964fbdb056c1d21942a4332da31a2c70eba7387c327ee604bcae8785b32569f",
+      "hi": "9c91d20e7c095956a097e8d2962c0e4bd7029006f2031e86fc4af16f7fef8cb5",
+      "kn": "7041d848ac33981008454ba49d1ddc023112ad02955e0ab34135012f61cee33c",
+      "ml": "aebd0ebf2d40ad4625a17194127cefa0e834ba60f85bc01e694a006c51a6f44f",
+      "mr": "03c14357ce3e54bb02f9d0b4a0e531ad687c70f68416cc46400216a3376d9d52",
+      "pa": "99a3407f0d59401a24193a94d7fa793ea647adaa4476b3ed9261879810c6a695",
+      "ta": "247c9e74623f8e73e723f0dabd725c4504b3ca6690c4019c0c6e78f4a7aae77c",
+      "te": "6e32cd280bc4792c9b0852abe6450984a7ba807cb7d1d004df8c9e6eaf33dc6d"
+    },
+    "indichallu_version": "0.0.1",
+    "licence": "CC-BY-4.0",
+    "repo": "ai4bharat/IndicQA",
+    "revision": "d7e91454f5c8a85b82e2549453521a2b7a185c44",
+    "split_group_by": "title",
+    "split_ratios": {
+      "test": 0.2,
+      "train": 0.6,
+      "val": 0.2
+    },
+    "split_seed": 13
+  }
+}
