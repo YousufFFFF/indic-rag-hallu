@@ -32,6 +32,39 @@ import numpy as np
 
 FORMAT_VERSION = 1
 LOAD_ATTEMPTS = 5  # retries when a concurrent save moves CURRENT during a load
+LOCK_TIMEOUT_S = 120.0  # how long a save waits for another writer
+STALE_LOCK_S = 600.0  # a lock older than this was left by a crashed writer
+
+
+class _SaveLock:
+    """Exclusive, cross-platform lock file (O_CREAT | O_EXCL); stale locks are broken."""
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def __enter__(self) -> _SaveLock:
+        import time
+
+        deadline = time.monotonic() + LOCK_TIMEOUT_S
+        while True:
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, str(os.getpid()).encode())
+                os.close(fd)
+                return self
+            except FileExistsError:
+                try:
+                    if time.time() - self.path.stat().st_mtime > STALE_LOCK_S:
+                        self.path.unlink(missing_ok=True)  # crashed writer
+                        continue
+                except FileNotFoundError:
+                    continue
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"{self.path}: another save holds the lock") from None
+                time.sleep(0.05)
+
+    def __exit__(self, *exc: object) -> None:
+        self.path.unlink(missing_ok=True)
 
 
 def _read_pointer(directory: Path) -> str:
@@ -134,9 +167,18 @@ class PassageIndex:
     # --- persistence -------------------------------------------------------------------
 
     def save(self, directory: str | Path) -> Path:
-        """Write the index to ``directory`` (replaced atomically if it exists)."""
+        """Write the index to ``directory`` (replaced atomically if it exists).
+
+        Saves to one directory are serialised by an exclusive lock file, so a pointer
+        switch and a cleanup can never interleave between two writers. Readers don't take
+        the lock (see :meth:`load`).
+        """
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
+        with _SaveLock(directory / ".save.lock"):
+            return self._save_locked(directory)
+
+    def _save_locked(self, directory: Path) -> Path:
         current = directory / "CURRENT"
         previous = current.read_text("utf-8").strip() if current.exists() else None
         version = Path(tempfile.mkdtemp(dir=directory, prefix="v-"))
@@ -157,17 +199,10 @@ class PassageIndex:
             for leftover in directory.glob(f".CURRENT.{version.name}.tmp"):
                 leftover.unlink(missing_ok=True)
             raise
-        # Keep the new version, the one before it (a reader may be mid-load on it), and
-        # whatever CURRENT names right now: never delete a published version, even if
-        # another save switched CURRENT after ours. (One pipeline writes an index; this
-        # guard only makes an unexpected second writer harmless, it doesn't serialise.)
-        keep = {version.name, previous}
-        for old in sorted(directory.glob("v-*")):
-            try:
-                keep.add(_read_pointer(directory))
-            except (OSError, ValueError):
-                pass
-            if old.is_dir() and old.name not in keep:
+        # Under the save lock nobody else can switch CURRENT, so keeping the new version
+        # and the one before it (a reader may be mid-load on it) is safe.
+        for old in directory.glob("v-*"):
+            if old.is_dir() and old.name not in (version.name, previous):
                 shutil.rmtree(old, ignore_errors=True)
         return directory
 

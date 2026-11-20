@@ -279,24 +279,49 @@ def test_broken_version_is_not_retried_forever(tmp_path):
         PassageIndex.load(d)
 
 
-def test_cleanup_never_deletes_the_version_current_names(tmp_path, monkeypatch):
-    """Codex review on #20: a second writer publishes between our switch and our cleanup;
-    our cleanup must not delete the version CURRENT now names."""
+def test_concurrent_saves_are_serialised_and_both_stay_consistent(tmp_path):
+    """Codex review on #20: two writers saving the same directory concurrently. Saves are
+    serialised by a lock file, so the index always loads and names a complete version."""
+    import threading
+
+    d = tmp_path / "i"
+    PassageIndex.build(unit_rows(5, 4, 0), IDS[:5], meta={"model_id": "start"}).save(d)
+    errors = []
+
+    def writer(tag, seed):
+        try:
+            for _ in range(5):
+                PassageIndex.build(unit_rows(5, 4, seed), IDS[:5], meta={"model_id": tag}).save(d)
+                PassageIndex.load(d)
+        except Exception as e:  # noqa: BLE001 - collected and asserted below
+            errors.append(e)
+
+    threads = [threading.Thread(target=writer, args=(t, s)) for t, s in (("a", 1), ("b", 2))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    assert PassageIndex.load(d).meta["model_id"] in {"a", "b"}
+    assert not (d / ".save.lock").exists()
+    assert len(list(d.glob("v-*"))) <= 2
+
+
+def test_save_waits_for_and_breaks_a_stale_lock(tmp_path, monkeypatch):
+    import os
+    import time
+
     from indichallu.retrieval import index as index_module
 
-    d = PassageIndex.build(unit_rows(5, 4, 1), IDS[:5], meta={"model_id": "a"}).save(tmp_path / "i")
-    other = PassageIndex.build(unit_rows(5, 4, 2), IDS[:5], meta={"model_id": "other"})
-    real_pointer = index_module._read_pointer
-    state = {"published": False}
-
-    def pointer_with_concurrent_save(directory):
-        if not state["published"]:  # first pointer read during our cleanup
-            state["published"] = True
-            other.save(directory)  # the other writer publishes now
-        return real_pointer(directory)
-
-    mine = PassageIndex.build(unit_rows(5, 4, 3), IDS[:5], meta={"model_id": "mine"})
-    monkeypatch.setattr(index_module, "_read_pointer", pointer_with_concurrent_save)
-    mine.save(d)
-    monkeypatch.setattr(index_module, "_read_pointer", real_pointer)
-    assert PassageIndex.load(d).meta["model_id"] == "other"  # still loadable
+    d = tmp_path / "i"
+    d.mkdir()
+    lock = d / ".save.lock"
+    lock.write_text("12345", "utf-8")
+    old = time.time() - index_module.STALE_LOCK_S - 5
+    os.utime(lock, (old, old))  # left behind by a crashed writer
+    PassageIndex.build(unit_rows(5, 4), IDS[:5]).save(d)
+    assert PassageIndex.load(d).passage_ids == IDS[:5] and not lock.exists()
+    lock.write_text("12345", "utf-8")  # a live lock: times out instead of corrupting
+    monkeypatch.setattr(index_module, "LOCK_TIMEOUT_S", 0.2)
+    with pytest.raises(TimeoutError):
+        PassageIndex.build(unit_rows(5, 4), IDS[:5]).save(d)
