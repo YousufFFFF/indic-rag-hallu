@@ -9,14 +9,17 @@ Dated log of what was done, what broke, and what's next. Newest first.
 **Done**
 - #20–#23 merged (index + retrieval, metrics, generation, detection); docs conflicts in DECISIONS/PROGRESS resolved by keeping both sides in number order.
 - **GPU path for the pilot (D-026).** `HFNLIModel` uses CUDA when available; `notebooks/m0_pilot_gpu.ipynb` reruns the pilot on a free Kaggle/Colab T4 with the same arguments; `normalize()` no longer re-parses the languages config on every call.
+- **M0 pilot results (T35), second Kaggle T4 run, commit ff41974 with the D-027 fix.** `results/m0/pilot.json` committed; the README block is generated from it. Test: ours AUROC 0.735 vs B1 0.673; response P/R/F1 ours 0.900 / 0.102 / 0.184, B1 0.833 / 0.114 / 0.200; span F1 0.039 / 0.032 (flagging everything: F1 0.667). 87 of 88 faithful answers SUPPORTED; 79 of 88 injected errors also SUPPORTED.
 
 **Broke / learned**
+- **The threshold objective is degenerate for this set.** D-024 tunes on character-level span F1, but predicted spans are whole claims (median 96 chars) and gold spans are the changed number (median 4 chars), so flagging a claim costs more false characters than it gains and both detectors' thresholds land at the bottom of the grid. Not changed after seeing test: M1 fixes its objective (and token-level spans from the typed verifiers) before its own evaluation.
 - **First complete pilot run (Kaggle T4, commit a8d0594) exposed an alignment flaw (D-027).** Test response F1 ours 0.549 / B1 0.506, span F1 0.034 / 0.022 (below the 0.667 of flagging everything). 30 of 88 faithful test answers, all verbatim in the evidence, had a claim scored as contradicted: the "most decisive window" rule let an unrelated window's contradiction hide the window stating the claim. Fixed to the most entailing window; the pilot is re-run, and these numbers are kept here only as the record of the bug.
 - It also confirmed the expected NLI weakness: injected number/date swaps are often still entailed (e.g. a changed year at entail 0.73), the motivation for the typed verifiers (C2).
 - The first full CPU pilot run was still in its NLI step after 4+ hours. Profiling: ~12k NLI pairs, and the mDeBERTa forward pass on 4 laptop cores is the bottleneck, not text processing (D-026).
 
 **Next**
-- Let the CPU pilot run finish; if it doesn't, run the notebook on a T4. Then bundle 4 (pilot results + README table) and bundle 5 (pipeline, outcome panel, docs).
+- Bundle 5 (one-command pipeline, outcome panel, dataset-card block, verified related work), then ~10 generated answers for Yousuf's Hindi spot-check (T36).
+- Fix the notebook so a re-run in the same session works (it deleted its own working directory).
 
 ## 2026-11-20
 
@@ -197,6 +200,16 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - B1 (sentence-level);
   - val-only threshold tuning.
   - **The slide-17 worked example passes with the real NLI model** (claim 1 SUPPORTED 0.79; claim 2 UNSUPPORTED, NUMERICAL).
+- **Generator fix (PR #22):** the Ollama tag `qwen3:4b` is **Qwen3-4B-Thinking-2507**. It wrote English reasoning instead of Hindi answers despite `think: false` and `/no_think`, and its recorded HF source was wrong. Switched to `qwen3:4b-instruct-2507-q4_K_M` (Qwen3-4B-Instruct-2507, Apache-2.0), which answers in Hindi. The unusable sample run was stopped.
+- **Bundle 4, pilot + evaluation (T19, T28–T30, T34–T35, T37–T39):**
+  - typed NUMERICAL/TEMPORAL injection that keeps the digit script;
+  - the pilot builder (faithful gold sentence vs injected, gold-in-top-3 only, val/test);
+  - `scripts/run_pilot_eval.py`: retrieval metrics on all test questions, our detector vs B1, val-tuned thresholds, test metrics → `results/m0/pilot.json`;
+  - `scripts/make_tables.py` (README block, `--check` in CI);
+  - README with architecture, quickstart and the generated results block;
+  - Gradio demo (`demo/app.py`) with tested rendering (`indichallu.viz`).
+- Retrieval in M0 uses mE5-small as a labelled stand-in, since bge-m3 and mE5-large were not approved.
+- Pending human checks: Hindi prompt review (T22) and the spot-check of generated answers (T36), both sent to the maintainer.
   - A smoke run against the real repo recorded the commit, dirty flag, diff, model revision and package versions.
 
 **Next**
