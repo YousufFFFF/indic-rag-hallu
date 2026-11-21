@@ -6,13 +6,26 @@ passages the generator was shown. It is not gold data and is never a headline nu
 
 from __future__ import annotations
 
+import html
+import re
 from collections.abc import Sequence
 
 from indichallu.data.schema import Record
 
 
 def _cell(text: str) -> str:
-    return " ".join(text.split()).replace("|", r"\|")
+    """One line of inert text: whitespace collapsed, HTML escaped (nothing can close the
+    ``<details>`` block), table pipes escaped."""
+    return html.escape(" ".join(text.split()), quote=False).replace("|", r"\|")
+
+
+def _literal_block(text: str) -> list[str]:
+    """``text`` as a fenced block, shown verbatim: a generated answer can contain Markdown
+    (headings, checkboxes) or HTML that must not become part of the sheet (Codex on #28).
+    The fence is longer than any backtick run inside the text."""
+    longest = max((len(m) for m in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return [fence + "text", text, fence]
 
 
 def spotcheck_markdown(records: Sequence[Record], title: str = "T36 spot-check") -> str:
@@ -29,9 +42,11 @@ def spotcheck_markdown(records: Sequence[Record], title: str = "T36 spot-check")
         out += [
             f"## {n}. `{r.id}`",
             "",
-            f"**प्रश्न:** {r.question}",
+            f"**प्रश्न:** {_cell(r.question)}",
             "",
-            f"**उत्तर:** {r.answer}",
+            "**उत्तर:**",
+            "",
+            *_literal_block(r.answer),
             "",
             f"Gold passage shown to the generator: {f'yes, [{gold}]' if gold else 'no'}",
             "",

@@ -28,16 +28,23 @@ from indichallu.retrieval.embed import REPO_ROOT  # noqa: E402
 from indichallu.runs import start_run  # noqa: E402
 
 PILOT = REPO_ROOT / "results" / "m0" / "pilot.json"
+PILOT_DETECTION = "m0"  # the detection config run_pilot_eval.py tuned its thresholds with
 
 
-def pilot_thresholds(path: Path | None = None) -> Thresholds | None:
-    """The val-tuned thresholds of our detector from the pilot summary, if committed.
+def pilot_thresholds(detection: str, det_cfg: dict, path: Path | None = None) -> Thresholds | None:
+    """The pilot's val-tuned thresholds, but only for the configuration they were tuned on:
+    the same detection config and the same NLI model and revision (Codex on #28). Any other
+    config keeps its own thresholds.
 
     ``PILOT`` is read at call time (not bound as a default), so it can be redirected."""
     path = PILOT if path is None else path
-    if not path.exists():
+    if detection != PILOT_DETECTION or not path.exists():
         return None
-    return Thresholds(**json.loads(path.read_text("utf-8"))["detection_test"]["ours"]["thresholds"])
+    summary = json.loads(path.read_text("utf-8"))
+    tuned_nli = {k: summary["nli"].get(k) for k in ("model_id", "revision")}
+    if tuned_nli != {k: det_cfg["nli"][k] for k in ("model_id", "revision")}:
+        return None
+    return Thresholds(**summary["detection_test"]["ours"]["thresholds"])
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -50,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with start_run(ga.run_config(args), name=args.name) as run:
         records = ga.generate(args, run)
-        th = pilot_thresholds()
+        th = pilot_thresholds(args.detection, det_cfg)
         source = (
             "results/m0/pilot.json (val-tuned)"
             if th

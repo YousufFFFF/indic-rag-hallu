@@ -108,15 +108,67 @@ def test_pipeline_writes_detected_records_and_a_spotcheck_sheet(tmp_path, monkey
     assert "(gold)" in sheet
 
 
-def test_pilot_thresholds_are_read_from_the_summary(tmp_path):
+def test_pilot_thresholds_apply_only_to_the_configuration_they_were_tuned_on(tmp_path):
+    """Codex on #28: another detection config, or another NLI model, keeps its own
+    thresholds instead of inheriting the pilot's."""
     rp = load("run_pipeline")
-    assert rp.pilot_thresholds(tmp_path / "none.json") is None
+    nli = {"model_id": "org/nli", "revision": "r1"}
+    det_cfg = {"nli": {**nli, "batch_size": 16}}
+    assert rp.pilot_thresholds("m0", det_cfg, tmp_path / "none.json") is None
     s = tmp_path / "pilot.json"
     s.write_text(
         json.dumps(
-            {"detection_test": {"ours": {"thresholds": {"entail": 0.3, "contradict": 0.7}}}}
+            {
+                "nli": nli,
+                "detection_test": {"ours": {"thresholds": {"entail": 0.3, "contradict": 0.7}}},
+            }
         ),
         "utf-8",
     )
-    th = rp.pilot_thresholds(s)
+    th = rp.pilot_thresholds("m0", det_cfg, s)
     assert (th.entail, th.contradict) == (0.3, 0.7)
+    assert rp.pilot_thresholds("m1", det_cfg, s) is None  # other detection config
+    other = {"nli": {**nli, "revision": "r2"}}
+    assert rp.pilot_thresholds("m0", other, s) is None  # other NLI weights
+
+
+def test_spotcheck_sheet_shows_generated_markdown_verbatim():
+    """Codex on #28: an answer containing Markdown/HTML must not create headings, ticked
+    boxes or close the passages section of the reviewer's sheet."""
+    from indichallu.annotate.spotcheck import spotcheck_markdown
+    from indichallu.data.schema import Record
+
+    nasty = "## नकली शीर्षक\n- [x] faithful\n</details>\n```\nअंत"
+    passage = RetrievedPassage(
+        passage_id="hi-p1", text="पाठ </details> | पाइप", score=0.9, rank=1, is_gold=True
+    )
+    rec = Record(
+        id="hi-q1",
+        lang="hi",
+        split=Split.TEST,
+        source="natural",
+        question="प्रश्न <b>?",
+        retrieved=[passage],
+        generator={
+            "model": "m",
+            "revision": "r",
+            "decoding": {"temperature": 0.0, "max_new_tokens": 8},
+        },
+        answer=nasty,
+    )
+    lines = spotcheck_markdown([rec, rec]).splitlines()
+    assert "## नकली शीर्षक" in lines  # present, but only inside the fenced block
+    i = lines.index("## नकली शीर्षक")
+    assert lines[i - 1] == "````text" and lines[i + 5] == "````"  # fence outlasts the ```
+    outside, fence = [], None  # lines a Markdown renderer would interpret
+    for line in lines:
+        if fence is None and line.startswith("```"):
+            fence = line[: len(line) - len(line.lstrip("`"))]
+        elif fence is not None and line == fence:
+            fence = None
+        elif fence is None:
+            outside.append(line)
+    assert sum(line == "</details>" for line in outside) == 2  # one real close per record
+    assert not any(line.startswith(("- [x]", "## नकली")) for line in outside)
+    assert "&lt;/details&gt; \\| पाइप" in "\n".join(lines)  # passage text is inert
+    assert "प्रश्न &lt;b&gt;?" in "\n".join(lines)
