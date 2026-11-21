@@ -47,7 +47,11 @@ def load_detection_config(name: str = "m0") -> dict:
 def load_nli(cfg: dict) -> HFNLIModel:
     n = cfg["nli"]
     return HFNLIModel(
-        n["model_id"], n["revision"], n.get("max_length", 512), n.get("batch_size", 16)
+        n["model_id"],
+        n["revision"],
+        n.get("max_length", 512),
+        n.get("batch_size", 16),
+        device=n.get("device"),  # None/"auto": CUDA if available (D-026)
     )
 
 

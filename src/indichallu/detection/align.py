@@ -32,16 +32,41 @@ class NLIModel(Protocol):
         ...
 
 
-class HFNLIModel:
-    """A Hugging Face sequence-classification NLI model at a pinned revision."""
+def resolve_device(device: str | None, cuda_available: bool) -> str:
+    """``None``/``"auto"`` -> CUDA when available, else CPU; anything else is used as given.
 
-    def __init__(self, model_id: str, revision: str, max_length: int = 512, batch_size: int = 16):
+    >>> resolve_device(None, True), resolve_device("auto", False), resolve_device("cpu", True)
+    ('cuda', 'cpu', 'cpu')
+    """
+    if device in (None, "auto"):
+        return "cuda" if cuda_available else "cpu"
+    return device
+
+
+class HFNLIModel:
+    """A Hugging Face sequence-classification NLI model at a pinned revision.
+
+    Runs on a CUDA GPU when one is available (D-026): on the project's CPU laptop the
+    pilot's ~12k pairs take many hours, on a free T4 minutes. Same weights, same inputs;
+    only floating-point rounding differs between devices.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        revision: str,
+        max_length: int = 512,
+        batch_size: int = 16,
+        device: str | None = None,
+    ):
         import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         self.torch = torch
+        self.device = resolve_device(device, torch.cuda.is_available())
         self.tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_id, revision=revision)
+        self.model.to(self.device)
         self.model.eval()
         id2label = {int(i): name.lower() for i, name in self.model.config.id2label.items()}
         try:  # map the model's own label order to (entail, neutral, contradict)
@@ -88,8 +113,9 @@ class HFNLIModel:
                 return_tensors="pt",
             )
             with self.torch.no_grad():
-                logits = self.model(**enc).logits
-            out.append(self.torch.softmax(logits, dim=-1)[:, self.order].numpy())
+                logits = self.model(**enc.to(self.device)).logits
+            probs = self.torch.softmax(logits.float(), dim=-1)[:, self.order]
+            out.append(probs.cpu().numpy())
         probs = np.concatenate(out) if out else np.zeros((0, 3))
         return reduce_most_decisive(probs, owner, len(pairs))
 

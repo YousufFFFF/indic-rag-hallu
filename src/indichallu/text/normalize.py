@@ -303,8 +303,15 @@ def _indicnlp_normalizer(lang: str, options: tuple[tuple[str, object], ...]):
     return IndicNormalizerFactory().get_normalizer(lang, **dict(options))
 
 
+@lru_cache(maxsize=1)
+def _supported_languages() -> frozenset[str]:
+    """Language codes in configs/languages.yaml, parsed once per process. Profiling the M0
+    pilot showed ``normalize`` re-reading the YAML twice per call (~0.06 s each)."""
+    return frozenset(load_languages())
+
+
 def _check_lang(lang: str) -> None:
-    supported = load_languages()
+    supported = _supported_languages()
     if lang not in supported:
         raise ValueError(f"unsupported language {lang!r}; expected one of {sorted(supported)}")
 

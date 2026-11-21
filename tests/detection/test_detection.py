@@ -294,3 +294,15 @@ def test_any_positive_budget_is_chunked_not_truncated(budget):
     assert spans[0][0] == 0 and spans[-1][1] == 500
     assert all(0 < b - a <= budget for a, b in spans)
     assert all(b1 >= a2 for (_, b1), (a2, _) in zip(spans, spans[1:], strict=False))  # no gaps
+
+
+def test_load_nli_passes_the_configured_device(monkeypatch):
+    """D-026: the NLI model runs on CUDA when available; the config can force a device."""
+    from indichallu.detection import detector as det_module
+
+    seen = []
+    monkeypatch.setattr(det_module, "HFNLIModel", lambda *a, **kw: seen.append(kw["device"]))
+    base = {"model_id": "m", "revision": "r"}
+    det_module.load_nli({"nli": base})
+    det_module.load_nli({"nli": {**base, "device": "cpu"}})
+    assert seen == [None, "cpu"]
