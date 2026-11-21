@@ -19,7 +19,17 @@ def summary():
         by_type.update({"NUMERICAL": {"span_f1": 0.9}, "TEMPORAL": {"span_f1": 0.7}})
         return {
             "thresholds": {"entail": 0.4, "contradict": 0.85},
-            "response": {"pooled": {"f1": f1, "balanced_accuracy": 0.75, "auroc": 0.8}},
+            "response": {
+                "pooled": {
+                    "f1": f1,
+                    "precision": 0.9,
+                    "recall": 0.1,
+                    "balanced_accuracy": 0.75,
+                    "auroc": 0.8,
+                    "positives": 6,
+                    "n": 12,
+                }
+            },
             "spans": {"pooled": span},
             "spans_by_type": by_type,
         }
@@ -32,7 +42,7 @@ def summary():
         "run_id": "20261120-000000-m0-pilot-deadbeef",
         "git_commit": "0123456789abcdef",
         "embedder": {"name": "me5-small", "model_id": "intfloat/multilingual-e5-small"},
-        "nli": {"model_id": "org/nli"},
+        "nli": {"model_id": "org/nli", "device": "cuda"},
         "pilot_records": {"val": 10, "test": 12},
         "retrieval_test": {"pooled": {**retrieval, "n_queries": 300}},
         "detection_test": {"ours": det(0.8), "b1_sentence_nli": det(0.6)},
@@ -43,9 +53,15 @@ def test_render_uses_only_summary_values_and_labels_the_pilot():
     md = mt.render(summary())
     assert "pilot — synthetic Hindi data only" in md and "0123456" in md
     assert "| `me5-small` | 0.500 | 0.500 | 0.500 | 0.500 | 0.500 | 0.500 |" in md
-    row = "Ours (decompose → align → aggregate) | 0.800 | 0.750 | 0.800 | 0.800 | 0.500 | — |"
+    row = (
+        "Ours (decompose → align → aggregate) | 0.900 | 0.100 | 0.800 | 0.750 | 0.800 | 0.800 "
+        "| 0.500 | — |"
+    )
     assert row + " 0.40 / 0.85 |" in md
     assert "| NUMERICAL | 0.900 | 0.900 |" in md and "| ENTITY | — | — |" in md
+    assert "(device: cuda)" in md
+    # 6 of 12 hallucinated: flagging everything gives P = 0.5, R = 1, F1 = 2/3
+    assert "gives response F1 0.667 on this test set (6 of 12 records hallucinated)" in md
 
 
 def test_replace_block_and_check(tmp_path, monkeypatch):
