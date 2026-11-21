@@ -30,8 +30,11 @@ from indichallu.runs import start_run  # noqa: E402
 PILOT = REPO_ROOT / "results" / "m0" / "pilot.json"
 
 
-def pilot_thresholds(path: Path = PILOT) -> Thresholds | None:
-    """The val-tuned thresholds of our detector from the pilot summary, if committed."""
+def pilot_thresholds(path: Path | None = None) -> Thresholds | None:
+    """The val-tuned thresholds of our detector from the pilot summary, if committed.
+
+    ``PILOT`` is read at call time (not bound as a default), so it can be redirected."""
+    path = PILOT if path is None else path
     if not path.exists():
         return None
     return Thresholds(**json.loads(path.read_text("utf-8"))["detection_test"]["ours"]["thresholds"])
