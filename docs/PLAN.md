@@ -25,7 +25,8 @@ Sources: [CLAUDE.md](../CLAUDE.md) (standing brief) and [stage1_deck.md](stage1_
 | T31 generation | **Partial:** Ollama does not see the laptop GPU, so M0 generates a small CPU sample (~10 answers); the full val+test run moves to a GPU in M1 | bundle 5 |
 | T32 one-command pipeline, T36 review sheet, T37 outcome panel, T40 related work, T41 dataset card | Done | bundle 5 |
 | T36 spot-check | Done: 10 CPU answers reviewed by Yousuf; the detector missed the one hallucination and scores refusals as SUPPORTED (PROGRESS 2026-11-21) | — |
-| T41 fresh-clone check, T42 HF Space | Open | — |
+| T41 fresh-clone check | Done: a fresh clone of `main` (8ef6a40) builds, passes the full suite, downloads IndicQA with verified hashes, and every `--check` (README, dataset card, outcome panel, corpus stats) is up to date | — |
+| T42 HF Space | Open (optional for M0; needs the HF account) | — |
 
 **Pilot and spot-check findings that shape M1:** off-the-shelf multilingual NLI entails most injected number/date swaps, so recall is low; the typed verifiers (C2) are the first M1 priority. Refusals need explicit handling (they are scored as entailed claims), and the annotation guidelines must cover answers that repeat the question's presupposition. The span-F1 threshold objective (D-024) is degenerate for claim-level predictions against number-level gold spans; M1 fixes its objective before its own evaluation (PROGRESS 2026-11-21).
 

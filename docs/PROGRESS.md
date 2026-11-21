@@ -23,6 +23,7 @@ Dated log of what was done, what broke, and what's next. Newest first.
   - of the 5 answers, Yousuf marked 4 faithful and 1 hallucinated (hi-q000747: "Diwali is known as the biggest festival in Australia at Federation Square"; the passage only says it was warmly embraced there);
   - he marked the 5 correct refusals faithful;
   - the detector marked all 12 claims SUPPORTED, so it **missed the hallucination**: its best entailment was 0.12 (from a non-gold passage), just over the val-tuned threshold 0.10.
+- **T41 fresh-clone check passed.** A fresh clone of `main` (8ef6a40) from GitHub: `docker compose build`, the full suite (2,378 passed; the 2 data-dependent skips pass once IndicQA is downloaded), `download_indicqa.py` (sha256 ok) and every `--check` (README, dataset card, outcome panel, corpus stats) succeed. The quickstart's CPU pilot step was not repeated (16+ h on the laptop); the pilot was reproduced on GPU through the notebook. **M0 is complete** apart from the optional HF Space (T42).
 
 **Broke / learned**
 - **Spot-check lessons for M1:**
@@ -35,7 +36,6 @@ Dated log of what was done, what broke, and what's next. Newest first.
 - The first full CPU pilot run was still in its NLI step after 4+ hours. Profiling: ~12k NLI pairs, and the mDeBERTa forward pass on 4 laptop cores is the bottleneck, not text processing (D-026).
 
 **Next**
-- T41: fresh-clone reproducibility check of `main`; that closes M0 (T42 HF Space is optional).
 - Small demo fixes (honest timing, an example question the corpus actually covers), then M1 planning: typed verifiers (C2), refusal handling, and the tuning objective fixed before any M1 evaluation.
 
 ## 2026-11-20
