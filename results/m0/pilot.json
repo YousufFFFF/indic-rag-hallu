@@ -1,0 +1,498 @@
+{
+  "dataset": {
+    "lang": "hi",
+    "repo": "ai4bharat/IndicQA",
+    "revision": "d7e91454f5c8a85b82e2549453521a2b7a185c44"
+  },
+  "detection_test": {
+    "b1_sentence_nli": {
+      "response": {
+        "macro": {
+          "auroc": 0.6732954545454546,
+          "balanced_accuracy": 0.5454545454545454,
+          "f1": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 0.11363636363636363
+        },
+        "macro_n": {
+          "auroc": 1,
+          "balanced_accuracy": 1,
+          "f1": 1,
+          "precision": 1,
+          "recall": 1
+        },
+        "per_language": {
+          "hi": {
+            "auroc": 0.6732954545454546,
+            "balanced_accuracy": 0.5454545454545454,
+            "f1": 0.2,
+            "fn": 78,
+            "fp": 2,
+            "n": 176,
+            "positives": 88,
+            "precision": 0.8333333333333334,
+            "recall": 0.11363636363636363,
+            "tn": 86,
+            "tp": 10
+          }
+        },
+        "pooled": {
+          "auroc": 0.6732954545454546,
+          "balanced_accuracy": 0.5454545454545454,
+          "f1": 0.2,
+          "fn": 78,
+          "fp": 2,
+          "n": 176,
+          "positives": 88,
+          "precision": 0.8333333333333334,
+          "recall": 0.11363636363636363,
+          "tn": 86,
+          "tp": 10
+        },
+        "worst": {
+          "auroc": {
+            "lang": "hi",
+            "value": 0.6732954545454546
+          },
+          "balanced_accuracy": {
+            "lang": "hi",
+            "value": 0.5454545454545454
+          },
+          "f1": {
+            "lang": "hi",
+            "value": 0.2
+          },
+          "precision": {
+            "lang": "hi",
+            "value": 0.8333333333333334
+          },
+          "recall": {
+            "lang": "hi",
+            "value": 0.11363636363636363
+          }
+        }
+      },
+      "spans": {
+        "macro": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "span_f1": 0.032443746729461015,
+          "span_precision": 0.018937080024434942,
+          "span_recall": 0.11313868613138686,
+          "token_iou": 0.024213075060532687
+        },
+        "macro_n": {
+          "exact_f1": 1,
+          "exact_precision": 1,
+          "exact_recall": 1,
+          "span_f1": 1,
+          "span_precision": 1,
+          "span_recall": 1,
+          "token_iou": 1
+        },
+        "per_language": {
+          "hi": {
+            "exact_f1": 0.0,
+            "exact_precision": 0.0,
+            "exact_recall": 0.0,
+            "gold_spans": 88,
+            "n_records": 176,
+            "predicted_spans": 12,
+            "span_f1": 0.032443746729461015,
+            "span_precision": 0.018937080024434942,
+            "span_recall": 0.11313868613138686,
+            "token_iou": 0.024213075060532687
+          }
+        },
+        "pooled": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "gold_spans": 88,
+          "n_records": 176,
+          "predicted_spans": 12,
+          "span_f1": 0.032443746729461015,
+          "span_precision": 0.018937080024434942,
+          "span_recall": 0.11313868613138686,
+          "token_iou": 0.024213075060532687
+        },
+        "worst": {
+          "exact_f1": {
+            "lang": "hi",
+            "value": 0.0
+          },
+          "exact_precision": {
+            "lang": "hi",
+            "value": 0.0
+          },
+          "exact_recall": {
+            "lang": "hi",
+            "value": 0.0
+          },
+          "span_f1": {
+            "lang": "hi",
+            "value": 0.032443746729461015
+          },
+          "span_precision": {
+            "lang": "hi",
+            "value": 0.018937080024434942
+          },
+          "span_recall": {
+            "lang": "hi",
+            "value": 0.11313868613138686
+          },
+          "token_iou": {
+            "lang": "hi",
+            "value": 0.024213075060532687
+          }
+        }
+      },
+      "spans_by_type": {
+        "ALL": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "gold_spans": 88,
+          "n_records": 176,
+          "predicted_spans": 12,
+          "span_f1": 0.032443746729461015,
+          "span_precision": 0.018937080024434942,
+          "span_recall": 0.11313868613138686,
+          "token_iou": 0.024213075060532687
+        },
+        "ENTITY": {
+          "exact_f1": null,
+          "exact_precision": null,
+          "exact_recall": null,
+          "gold_spans": 0,
+          "n_records": 176,
+          "predicted_spans": 0,
+          "span_f1": null,
+          "span_precision": null,
+          "span_recall": null,
+          "token_iou": null
+        },
+        "LOCATION": {
+          "exact_f1": null,
+          "exact_precision": null,
+          "exact_recall": null,
+          "gold_spans": 0,
+          "n_records": 176,
+          "predicted_spans": 0,
+          "span_f1": null,
+          "span_precision": null,
+          "span_recall": null,
+          "token_iou": null
+        },
+        "NUMERICAL": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "gold_spans": 44,
+          "n_records": 176,
+          "predicted_spans": 3,
+          "span_f1": 0.03625377643504532,
+          "span_precision": 0.025,
+          "span_recall": 0.06593406593406594,
+          "token_iou": 0.031914893617021274
+        },
+        "TEMPORAL": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "gold_spans": 44,
+          "n_records": 176,
+          "predicted_spans": 9,
+          "span_f1": 0.02531645569620253,
+          "span_precision": 0.014316392269148175,
+          "span_recall": 0.1092896174863388,
+          "token_iou": 0.01557632398753894
+        }
+      },
+      "thresholds": {
+        "contradict": 0.05,
+        "entail": 0.1
+      },
+      "val_grid_best": {
+        "contradict": 0.05,
+        "entail": 0.1,
+        "response_f1": 0.21739130434782608,
+        "span_f1": 0.06200317965023847
+      }
+    },
+    "ours": {
+      "response": {
+        "macro": {
+          "auroc": 0.7346978305785123,
+          "balanced_accuracy": 0.5454545454545454,
+          "f1": 0.1836734693877551,
+          "precision": 0.9,
+          "recall": 0.10227272727272728
+        },
+        "macro_n": {
+          "auroc": 1,
+          "balanced_accuracy": 1,
+          "f1": 1,
+          "precision": 1,
+          "recall": 1
+        },
+        "per_language": {
+          "hi": {
+            "auroc": 0.7346978305785123,
+            "balanced_accuracy": 0.5454545454545454,
+            "f1": 0.1836734693877551,
+            "fn": 79,
+            "fp": 1,
+            "n": 176,
+            "positives": 88,
+            "precision": 0.9,
+            "recall": 0.10227272727272728,
+            "tn": 87,
+            "tp": 9
+          }
+        },
+        "pooled": {
+          "auroc": 0.7346978305785123,
+          "balanced_accuracy": 0.5454545454545454,
+          "f1": 0.1836734693877551,
+          "fn": 79,
+          "fp": 1,
+          "n": 176,
+          "positives": 88,
+          "precision": 0.9,
+          "recall": 0.10227272727272728,
+          "tn": 87,
+          "tp": 9
+        },
+        "worst": {
+          "auroc": {
+            "lang": "hi",
+            "value": 0.7346978305785123
+          },
+          "balanced_accuracy": {
+            "lang": "hi",
+            "value": 0.5454545454545454
+          },
+          "f1": {
+            "lang": "hi",
+            "value": 0.1836734693877551
+          },
+          "precision": {
+            "lang": "hi",
+            "value": 0.9
+          },
+          "recall": {
+            "lang": "hi",
+            "value": 0.10227272727272728
+          }
+        }
+      },
+      "spans": {
+        "macro": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "span_f1": 0.03879310344827586,
+          "span_precision": 0.024150268336314847,
+          "span_recall": 0.09854014598540146,
+          "token_iou": 0.029315960912052116
+        },
+        "macro_n": {
+          "exact_f1": 1,
+          "exact_precision": 1,
+          "exact_recall": 1,
+          "span_f1": 1,
+          "span_precision": 1,
+          "span_recall": 1,
+          "token_iou": 1
+        },
+        "per_language": {
+          "hi": {
+            "exact_f1": 0.0,
+            "exact_precision": 0.0,
+            "exact_recall": 0.0,
+            "gold_spans": 88,
+            "n_records": 176,
+            "predicted_spans": 10,
+            "span_f1": 0.03879310344827586,
+            "span_precision": 0.024150268336314847,
+            "span_recall": 0.09854014598540146,
+            "token_iou": 0.029315960912052116
+          }
+        },
+        "pooled": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "gold_spans": 88,
+          "n_records": 176,
+          "predicted_spans": 10,
+          "span_f1": 0.03879310344827586,
+          "span_precision": 0.024150268336314847,
+          "span_recall": 0.09854014598540146,
+          "token_iou": 0.029315960912052116
+        },
+        "worst": {
+          "exact_f1": {
+            "lang": "hi",
+            "value": 0.0
+          },
+          "exact_precision": {
+            "lang": "hi",
+            "value": 0.0
+          },
+          "exact_recall": {
+            "lang": "hi",
+            "value": 0.0
+          },
+          "span_f1": {
+            "lang": "hi",
+            "value": 0.03879310344827586
+          },
+          "span_precision": {
+            "lang": "hi",
+            "value": 0.024150268336314847
+          },
+          "span_recall": {
+            "lang": "hi",
+            "value": 0.09854014598540146
+          },
+          "token_iou": {
+            "lang": "hi",
+            "value": 0.029315960912052116
+          }
+        }
+      },
+      "spans_by_type": {
+        "ALL": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "gold_spans": 88,
+          "n_records": 176,
+          "predicted_spans": 10,
+          "span_f1": 0.03879310344827586,
+          "span_precision": 0.024150268336314847,
+          "span_recall": 0.09854014598540146,
+          "token_iou": 0.029315960912052116
+        },
+        "ENTITY": {
+          "exact_f1": null,
+          "exact_precision": null,
+          "exact_recall": null,
+          "gold_spans": 0,
+          "n_records": 176,
+          "predicted_spans": 0,
+          "span_f1": null,
+          "span_precision": null,
+          "span_recall": null,
+          "token_iou": null
+        },
+        "LOCATION": {
+          "exact_f1": null,
+          "exact_precision": null,
+          "exact_recall": null,
+          "gold_spans": 0,
+          "n_records": 176,
+          "predicted_spans": 0,
+          "span_f1": null,
+          "span_precision": null,
+          "span_recall": null,
+          "token_iou": null
+        },
+        "NUMERICAL": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "gold_spans": 44,
+          "n_records": 176,
+          "predicted_spans": 3,
+          "span_f1": 0.03625377643504532,
+          "span_precision": 0.025,
+          "span_recall": 0.06593406593406594,
+          "token_iou": 0.031914893617021274
+        },
+        "TEMPORAL": {
+          "exact_f1": 0.0,
+          "exact_precision": 0.0,
+          "exact_recall": 0.0,
+          "gold_spans": 44,
+          "n_records": 176,
+          "predicted_spans": 7,
+          "span_f1": 0.030160226201696512,
+          "span_precision": 0.018223234624145785,
+          "span_recall": 0.08743169398907104,
+          "token_iou": 0.018604651162790697
+        }
+      },
+      "thresholds": {
+        "contradict": 0.05,
+        "entail": 0.1
+      },
+      "val_grid_best": {
+        "contradict": 0.05,
+        "entail": 0.1,
+        "response_f1": 0.1978021978021978,
+        "span_f1": 0.06294964028776978
+      }
+    }
+  },
+  "dirty": false,
+  "embedder": {
+    "model_id": "intfloat/multilingual-e5-small",
+    "name": "me5-small",
+    "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3"
+  },
+  "git_commit": "ff41974e9a0420fe61707b938e9ae7ca9ea4fc32",
+  "label": "pilot — synthetic Hindi data only",
+  "nli": {
+    "device": "cuda",
+    "model_id": "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
+    "revision": "b5113eb38ab63efdd7f280f8c144ea8b13f978ce"
+  },
+  "pilot_records": {
+    "test": 176,
+    "val": 164
+  },
+  "pilot_set": {
+    "injected NUMERICAL": 78,
+    "injected TEMPORAL": 92,
+    "skipped: gold passage not retrieved": 76,
+    "skipped: no verified answer": 193,
+    "skipped: nothing to inject (no number, year or month)": 158,
+    "used (test)": 88,
+    "used (val)": 82
+  },
+  "retrieval_test": {
+    "per_language": {
+      "hi": {
+        "mrr": 0.6143663391282439,
+        "n_excluded": 0,
+        "n_queries": 315,
+        "ndcg@1": 0.5174603174603175,
+        "ndcg@10": 0.6600668105051531,
+        "ndcg@3": 0.6157947004308425,
+        "ndcg@5": 0.6418871366337574,
+        "recall@1": 0.5174603174603175,
+        "recall@10": 0.8031746031746032,
+        "recall@3": 0.6825396825396826,
+        "recall@5": 0.746031746031746
+      }
+    },
+    "pooled": {
+      "mrr": 0.6143663391282439,
+      "n_excluded": 0,
+      "n_queries": 315,
+      "ndcg@1": 0.5174603174603175,
+      "ndcg@10": 0.6600668105051531,
+      "ndcg@3": 0.6157947004308425,
+      "ndcg@5": 0.6418871366337574,
+      "recall@1": 0.5174603174603175,
+      "recall@10": 0.8031746031746032,
+      "recall@3": 0.6825396825396826,
+      "recall@5": 0.746031746031746
+    }
+  },
+  "run_id": "20261121-102839-m0-pilot-03dcc971"
+}
