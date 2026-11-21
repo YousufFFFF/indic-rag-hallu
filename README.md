@@ -90,9 +90,15 @@ Everything runs in Docker; no local Python install is needed (Docker Desktop wit
 docker compose build                                            # Python 3.11, CPU PyTorch, pinned deps
 docker compose run --rm dev pytest                              # test suite (CPU, no downloads)
 docker compose run --rm dev python scripts/download_indicqa.py  # Hindi IndicQA, pinned + verified
-docker compose run --rm dev python scripts/run_pilot_eval.py --embedder me5-small   # M0 pilot run
 docker compose run --rm dev python scripts/make_tables.py       # regenerate the table above
+docker compose run --rm -p 7860:7860 dev python demo/app.py     # demo at http://localhost:7860 (CPU: ~10 min per check)
 ```
+
+**The pilot run needs a GPU.** `scripts/run_pilot_eval.py --embedder me5-small` scores about
+12k claim–passage pairs with the NLI model: on a 4-core laptop CPU it was still running after
+16 hours, on a free T4 it takes about 15 minutes. Run it with
+[`notebooks/m0_pilot_gpu.ipynb`](notebooks/m0_pilot_gpu.ipynb) on Kaggle or Colab (no tokens
+needed), or on any CUDA machine with the same command (DECISIONS D-026).
 
 `run_pilot_eval.py` writes a run folder under `results/runs/` (config, git commit, model revisions, environment) and the summary `results/m0/pilot.json`, the only source of the numbers above.
 
