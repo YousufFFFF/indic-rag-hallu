@@ -4,6 +4,18 @@ Dated log of what was done, what broke, and what's next. Newest first.
 
 ---
 
+## 2026-11-21
+
+**Done**
+- #20–#23 merged (index + retrieval, metrics, generation, detection); docs conflicts in DECISIONS/PROGRESS resolved by keeping both sides in number order.
+- **GPU path for the pilot (D-026).** `HFNLIModel` uses CUDA when available; `notebooks/m0_pilot_gpu.ipynb` reruns the pilot on a free Kaggle/Colab T4 with the same arguments; `normalize()` no longer re-parses the languages config on every call.
+
+**Broke / learned**
+- The first full CPU pilot run was still in its NLI step after 4+ hours. Profiling: ~12k NLI pairs, and the mDeBERTa forward pass on 4 laptop cores is the bottleneck, not text processing (D-026).
+
+**Next**
+- Let the CPU pilot run finish; if it doesn't, run the notebook on a T4. Then bundle 4 (pilot results + README table) and bundle 5 (pipeline, outcome panel, docs).
+
 ## 2026-11-20
 
 **Done**

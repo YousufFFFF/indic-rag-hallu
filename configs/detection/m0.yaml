@@ -7,6 +7,7 @@ nli:
   licence: MIT
   max_length: 512
   batch_size: 16
+  device: auto                 # CUDA when available, else CPU (D-026); "cpu" forces the CPU
   window_sentences: 3          # premise = up to 3 consecutive passage sentences
   window_stride: 2             # windows start every 2 sentences (adjacent pairs still share one)
 normalize:                     # premise and hypothesis both go through this

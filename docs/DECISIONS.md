@@ -358,3 +358,18 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Embedder:** `intfloat/multilingual-e5-small` as a **labelled stand-in**, since bge-m3 and mE5-large downloads were not approved (D-020; RESOURCES).
   - **Output:** a run folder plus `results/m0/pilot.json` (committed), the only source of the README's M0 table (`scripts/make_tables.py --check` is tested in CI).
 - **Known bias (stated with every number):** faithful answers are verbatim passage sentences (easy to entail); errors are single-token edits; only NUMERICAL/TEMPORAL (ENTITY/LOCATION need IndicNER, M1). These numbers show that the pipeline works end to end and how decomposition compares with sentence-level NLI on controlled errors. **They are not a measure of real-world hallucination detection;** that needs the human gold set (M2).
+
+## D-026 · NLI on a GPU when available; free Kaggle/Colab notebook for the pilot (2026-11-21)
+
+- **Context:** The first full pilot run (`run_pilot_eval.py`, commit aa624d6) was still in its NLI step after more than 4 hours on the laptop CPU (Intel i5-10300H, 4 cores; the GTX 1650 Ti is not visible inside Docker, see D-023). Profiling showed:
+  - the workload is about 20 NLI pairs per pilot record, roughly 12k pairs for ours + B1;
+  - text processing is cheap (about 0.3 s per record once a passage's windows are cached), except that `normalize()` re-parsed `configs/languages.yaml` twice per call;
+  - the mDeBERTa forward pass dominates: 1.7 pairs/s at 29 tokens and 0.1 pairs/s at 389 tokens, measured while the pilot run shared the CPU (so pessimistic, but the order of magnitude stands).
+- **Decision:**
+  - `HFNLIModel` runs on CUDA when a GPU is available (`device: null`/`auto`); `configs/detection/*.yaml` can force `nli.device: cpu`. Probabilities are computed in float32 and copied back to the CPU.
+  - `notebooks/m0_pilot_gpu.ipynb` runs the **same command and arguments** as the local run on a free Kaggle or Colab T4 (CLAUDE.md §2 compute budget): fresh clone of a branch, repo-pinned dependencies (the platform's CUDA torch is kept), IndicQA download with verified hashes, `--require-clean`, and one zip of `results/m0/pilot.json` + the run folder to copy into the repo.
+  - The languages config is parsed once per process for the language check.
+- **Consequences:**
+  - Results are comparable across devices up to floating-point rounding; thresholds are tuned on a 0.05 grid, so rounding cannot move them except at an exact tie. The device and GPU are recorded in each run's `meta.json` (`environment.gpus`, `environment.cuda`).
+  - The notebook may run on a newer Python than the Docker image's 3.11 (`--ignore-requires-python`); the run records the Python and package versions it used.
+  - M1 (aligner fine-tuning, baselines B2–B5) needs the GPU anyway; this is the first step.
