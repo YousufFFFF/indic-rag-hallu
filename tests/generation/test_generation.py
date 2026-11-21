@@ -263,3 +263,15 @@ def test_unverified_cache_entries_are_not_replayed_as_pinned_output(tmp_path):
     offline = MockBackend()  # a later replay: the verified entry is reused, no new call
     gen, cached = Generator(pinned, offline, cache_dir=tmp_path).generate("प्रश्न")
     assert cached and gen.text == "नया" and offline.calls == []
+
+
+def test_request_timeout_comes_from_config_and_is_not_part_of_identity(monkeypatch):
+    """A 3-passage Hindi prompt takes 10+ minutes on the laptop CPU (D-023)."""
+    from dataclasses import replace
+
+    from indichallu.generation.generate import make_backend
+
+    cfg = load_generator_config("m0")
+    assert cfg.request_timeout_s == 1800
+    assert make_backend(cfg).timeout == 1800
+    assert replace(cfg, request_timeout_s=5).identity() == cfg.identity()

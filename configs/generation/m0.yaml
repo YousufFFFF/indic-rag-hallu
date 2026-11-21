@@ -10,6 +10,8 @@ licence: Apache-2.0
 base_url_env: OLLAMA_BASE_URL        # http://host.docker.internal:11434/v1 in the dev container
 prompt_template: hi                  # src/indichallu/generation/prompts/hi.txt
 context_passages: 3                  # top-k retrieved passages put in the prompt
+request_timeout_s: 1800              # laptop CPU: ~17.5 prompt tok/s, so a ~10k-token prompt
+                                     # takes 10+ min; not part of the cache identity
 decoding:
   temperature: 0.0
   top_p: 1.0
