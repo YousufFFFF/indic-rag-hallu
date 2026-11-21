@@ -11,6 +11,8 @@ Dated log of what was done, what broke, and what's next. Newest first.
 - **GPU path for the pilot (D-026).** `HFNLIModel` uses CUDA when available; `notebooks/m0_pilot_gpu.ipynb` reruns the pilot on a free Kaggle/Colab T4 with the same arguments; `normalize()` no longer re-parses the languages config on every call.
 
 **Broke / learned**
+- **First complete pilot run (Kaggle T4, commit a8d0594) exposed an alignment flaw (D-027).** Test response F1 ours 0.549 / B1 0.506, span F1 0.034 / 0.022 (below the 0.667 of flagging everything). 30 of 88 faithful test answers, all verbatim in the evidence, had a claim scored as contradicted: the "most decisive window" rule let an unrelated window's contradiction hide the window stating the claim. Fixed to the most entailing window; the pilot is re-run, and these numbers are kept here only as the record of the bug.
+- It also confirmed the expected NLI weakness: injected number/date swaps are often still entailed (e.g. a changed year at entail 0.73), the motivation for the typed verifiers (C2).
 - The first full CPU pilot run was still in its NLI step after 4+ hours. Profiling: ~12k NLI pairs, and the mDeBERTa forward pass on 4 laptop cores is the bottleneck, not text processing (D-026).
 
 **Next**
