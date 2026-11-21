@@ -65,10 +65,19 @@ def test_clean_answer_drops_a_think_block():
 
 class _FakeOllama(http.server.BaseHTTPRequestHandler):
     bodies: list = []
+    error: str | None = None  # set to make /api/chat answer 400 with this message
 
     def do_POST(self):  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])).decode("utf-8"))
         type(self).bodies.append((self.path, body))
+        if type(self).error is not None:
+            data = json.dumps({"error": type(self).error}).encode("utf-8")
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         reply = {
             "message": {"role": "assistant", "content": "राज्य सरकार।"},
             "prompt_eval_count": 42,
@@ -100,6 +109,7 @@ class _FakeOllama(http.server.BaseHTTPRequestHandler):
 @pytest.fixture
 def fake_ollama():
     _FakeOllama.bodies = []
+    _FakeOllama.error = None
     _FakeOllama.tags = [{"name": "qwen3:4b", "digest": "d" * 64}]
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FakeOllama)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -120,9 +130,18 @@ def test_ollama_backend_sends_fixed_decoding_and_utf8(fake_ollama):
         "top_p": 1.0,
         "seed": 0,
         "num_predict": 256,
-        "num_ctx": 8192,
+        "num_ctx": 16384,
     }
     assert gen.text == "राज्य सरकार।" and gen.prompt_tokens == 42 and gen.completion_tokens == 5
+
+
+def test_ollama_errors_carry_the_server_message(fake_ollama):
+    """A real 3-passage Hindi prompt overflowed num_ctx 8192 and surfaced only as
+    "HTTP Error 400: Bad Request"; the server's explanation must reach the user."""
+    url, _ = fake_ollama
+    _FakeOllama.error = "request (9913 tokens) exceeds the available context size (8192 tokens)"
+    with pytest.raises(RuntimeError, match=r"HTTP 400: .*exceeds the available context size"):
+        OllamaBackend("qwen3:4b", url).generate("प्रश्न", load_generator_config("m0").decoding)
 
 
 # --- config and cache ------------------------------------------------------------------

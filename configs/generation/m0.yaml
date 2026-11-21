@@ -15,5 +15,6 @@ decoding:
   top_p: 1.0
   seed: 0
   max_new_tokens: 256
-  num_ctx: 8192                      # 3 IndicQA passages are ~4k tokens; Ollama's default (4096) truncates
+  num_ctx: 16384                     # Qwen's tokenizer spends ~1 token per Devanagari char: a real
+                                     # 3-passage prompt measured 9,913 tokens, over 8192 (D-023)
   think: false                       # Instruct-2507 has no thinking mode; kept explicit
