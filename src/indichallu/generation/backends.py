@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -106,8 +107,12 @@ class OllamaBackend:
             f"{self.root}/api/chat", data=body, headers={"Content-Type": "application/json"}
         )
         start = time.perf_counter()
-        with urllib.request.urlopen(request, timeout=self.timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:  # Ollama explains a 400 in the body
+            detail = e.read().decode("utf-8", "replace")[:500]
+            raise RuntimeError(f"Ollama /api/chat returned HTTP {e.code}: {detail}") from e
         seconds = time.perf_counter() - start
         raw = data["message"]["content"]
         return Generation(

@@ -1,0 +1,17 @@
+{
+  "baseline": "b1_sentence_nli",
+  "delta_response_f1": -0.0163265306122449,
+  "delta_span_f1": 0.006349356718814848,
+  "git_commit": "ff41974e9a0420fe61707b938e9ae7ca9ea4fc32",
+  "label": "pilot — synthetic Hindi data only",
+  "macro_f1": 0.1836734693877551,
+  "macro_f1_languages": 1,
+  "n_languages": 1,
+  "recall@10": 0.8031746031746032,
+  "run_id": "20261121-102839-m0-pilot-03dcc971",
+  "span_f1": 0.03879310344827586,
+  "worst_language_f1": {
+    "lang": "hi",
+    "value": 0.1836734693877551
+  }
+}

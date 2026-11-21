@@ -41,6 +41,9 @@ class GeneratorConfig:
     hf_source: str | None = None
     hf_revision: str | None = None
     licence: str | None = None
+    # Seconds one request may take. Not part of identity(): it never changes an answer.
+    # On the laptop CPU a 3-passage Hindi prompt takes 10+ minutes (D-023).
+    request_timeout_s: float = 600.0
 
     def identity(self) -> dict[str, Any]:
         """Everything that determines an answer apart from the prompt."""
@@ -76,7 +79,9 @@ def load_generator_config(name: str = "m0") -> GeneratorConfig:
 def make_backend(cfg: GeneratorConfig) -> Backend:
     base_url = os.environ.get(cfg.base_url_env, "http://127.0.0.1:11434/v1")
     if cfg.backend == "ollama":
-        return OllamaBackend(cfg.model, base_url, expected_digest=cfg.ollama_digest)
+        return OllamaBackend(
+            cfg.model, base_url, expected_digest=cfg.ollama_digest, timeout=cfg.request_timeout_s
+        )
     if cfg.backend == "openai_compatible":
         return OpenAICompatibleBackend(cfg.model, base_url)
     raise ValueError(f"unknown backend {cfg.backend!r}")

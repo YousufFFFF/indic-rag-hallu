@@ -1,6 +1,6 @@
 # PLAN — Hallucination Detection in RAG for Low-Resource Indic Languages
 
-*Last updated: 2026-11-19 · Status: draft, awaiting maintainer go-ahead · No code written yet. M0 generator, environment and GPU decided (see §4).*
+*Last updated: 2026-11-21 · Status: M0 implemented and evaluated (pilot); open items are marked in "M0 status".*
 
 **Team:** Mohammed Yousuf Ansari (lead) · Mukta Dhage · Sneha Shinde · Srushti Kondhalkar
 **Guide:** Prof. [GUIDE NAME — open question Q7]
@@ -8,6 +8,26 @@
 Sources: [CLAUDE.md](../CLAUDE.md) (standing brief) and [stage1_deck.md](stage1_deck.md) (Stage I commitments). Models and datasets are listed in [RESOURCES.md](RESOURCES.md).
 
 ---
+
+## M0 status (2026-11-21)
+
+| Tasks | Status | Where |
+|---|---|---|
+| T01–T14 | Done | merged to `main` |
+| T15 index + retrieval | Done | #20 |
+| T16–T18, T20 metrics | Done | #21 |
+| T19 retrieval eval | **Done with a deviation:** `multilingual-e5-small` as a labelled stand-in; bge-m3 / mE5-large downloads not approved yet, so the embedder choice moves to M1 (T4) | #26 (pilot run) |
+| T21–T23 generation | Done (Ollama digest pinned; Hindi prompt approved by Yousuf) | #22 |
+| T24–T27, T33, T34 detection, B1, tuning | Done (slide-17 regression passes with the real NLI model); window reduction fixed to the most entailing window (D-027) | #23, #25 |
+| GPU path | NLI on CUDA when available; Kaggle/Colab notebook for the pilot (D-026) | #24, #27 |
+| T28 NUMERICAL/TEMPORAL injection, T30 pilot set, T35 pilot eval, T37 README table, T38 demo, T39 README | Done; results generated from `results/m0/pilot.json` (Kaggle T4 run) | #26 |
+| T29 ENTITY/LOCATION injection | **Moved to M1:** needs IndicNER (gated; access to be requested) | — |
+| T31 generation | **Partial:** Ollama does not see the laptop GPU, so M0 generates a small CPU sample (~10 answers); the full val+test run moves to a GPU in M1 | bundle 5 |
+| T32 one-command pipeline, T36 review sheet, T37 outcome panel, T40 related work, T41 dataset card | Done | bundle 5 |
+| T36 spot-check | **Next:** generate the CPU sample with `scripts/run_pipeline.py`, then Yousuf reviews the sheet | — |
+| T41 fresh-clone check, T42 HF Space | Open | — |
+
+**Pilot finding that shapes M1:** off-the-shelf multilingual NLI entails most injected number/date swaps, so recall is low; the typed verifiers (C2) are the first M1 priority. The span-F1 threshold objective (D-024) is degenerate for claim-level predictions against number-level gold spans; M1 fixes its objective before its own evaluation (PROGRESS 2026-11-21).
 
 ## 1. Traceability matrix
 

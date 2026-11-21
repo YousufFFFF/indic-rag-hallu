@@ -32,7 +32,7 @@ from indichallu.generation.generate import Generator, load_generator_config
 from indichallu.generation.prompts import build_prompt
 from indichallu.retrieval.embed import REPO_ROOT, Embedder, load_embedder_config
 from indichallu.retrieval.retrieve import Retriever, gold_rank
-from indichallu.runs import start_run
+from indichallu.runs import Run, start_run
 
 EMBEDDING_CACHE = REPO_ROOT / "data" / "interim" / "embeddings"  # git-ignored
 
@@ -54,8 +54,8 @@ def retrieval_row(qa_id: str, gold_passage_id: str, hits: Sequence[RetrievedPass
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+def build_parser(description: str = __doc__.splitlines()[0]) -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description=description)
     p.add_argument("--lang", default="hi")
     p.add_argument("--split", default="test", choices=[s.value for s in Split])
     p.add_argument("--sample", type=int, default=None, help="number of questions (default: all)")
@@ -64,84 +64,98 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--k", type=int, default=10, help="passages retrieved (for retrieval metrics)")
     p.add_argument("--generator", default="m0", help="configs/generation/<name>.yaml")
     p.add_argument("--name", default="generate")
-    args = p.parse_args(argv)
+    return p
 
+
+def check_args(p: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     if args.sample is not None and args.sample < 1:
         p.error("--sample must be a positive number of questions")
-    gen_cfg = load_generator_config(args.generator)
-    if gen_cfg.context_passages > args.k:
+    if load_generator_config(args.generator).context_passages > args.k:
         p.error("--k must be >= the generator's context_passages")
-    config = {"seed": args.seed, **{k: v for k, v in vars(args).items() if k != "seed"}}
 
-    with start_run(config, name=args.name) as run:
-        dataset = load_pinned_dataset()
-        ds = load_indicqa(verified_local_path(dataset, args.lang), args.lang)
-        split = split_dataset(ds)
-        questions = {
-            q.qa_id: q
-            for q in ds.questions
-            if split.of_passage(q.gold_passage_id) == Split(args.split)
-        }
-        chosen = [questions[i] for i in sample_ids(list(questions), args.sample, args.seed)]
 
-        emb_cfg = load_embedder_config(args.embedder)
-        run.add_model("embedder", emb_cfg.model_id, revision=emb_cfg.revision, config=args.embedder)
-        run.add_model(
-            "generator",
-            gen_cfg.model,
-            revision=gen_cfg.ollama_digest or gen_cfg.hf_revision,
-            backend=gen_cfg.backend,
-            hf_source=gen_cfg.hf_source,
-            hf_revision=gen_cfg.hf_revision,
-        )
-        run.meta["dataset"] = {
-            "repo": dataset.repo,
-            "revision": dataset.revision,
-            "lang": args.lang,
-        }
-        run._save()
+def run_config(args: argparse.Namespace) -> dict:
+    return {"seed": args.seed, **{k: v for k, v in vars(args).items() if k != "seed"}}
 
-        retriever = Retriever.build(
-            Embedder(emb_cfg, cache_dir=EMBEDDING_CACHE),
-            [x.passage_id for x in ds.passages],
-            [x.text for x in ds.passages],
-        )
-        retrieved = retriever.retrieve(
-            [q.question for q in chosen],
-            k=args.k,
-            gold_passage_ids=[q.gold_passage_id for q in chosen],
-        )
-        generator = Generator(gen_cfg)
-        records, rankings = [], []
-        for i, (q, hits) in enumerate(zip(chosen, retrieved, strict=True), start=1):
-            evidence = hits[: gen_cfg.context_passages]  # exactly what the model is shown
-            prompt = build_prompt(args.lang, q.question, evidence)
-            rankings.append(retrieval_row(q.qa_id, q.gold_passage_id, hits))
-            start = time.perf_counter()
-            gen, cached = generator.generate(prompt)
-            records.append(
-                Record(
-                    id=q.qa_id,
-                    lang=args.lang,
-                    split=args.split,
-                    source="natural",
-                    question=q.question,
-                    retrieved=evidence,
-                    generator=gen_cfg.record_info(),
-                    answer=gen.text,
-                )
+
+def generate(args: argparse.Namespace, run: Run) -> list[Record]:
+    """Retrieve and generate inside ``run``; writes records.jsonl and retrieval.jsonl."""
+    gen_cfg = load_generator_config(args.generator)
+    dataset = load_pinned_dataset()
+    ds = load_indicqa(verified_local_path(dataset, args.lang), args.lang)
+    split = split_dataset(ds)
+    questions = {
+        q.qa_id: q for q in ds.questions if split.of_passage(q.gold_passage_id) == Split(args.split)
+    }
+    chosen = [questions[i] for i in sample_ids(list(questions), args.sample, args.seed)]
+
+    emb_cfg = load_embedder_config(args.embedder)
+    run.add_model("embedder", emb_cfg.model_id, revision=emb_cfg.revision, config=args.embedder)
+    run.add_model(
+        "generator",
+        gen_cfg.model,
+        revision=gen_cfg.ollama_digest or gen_cfg.hf_revision,
+        backend=gen_cfg.backend,
+        hf_source=gen_cfg.hf_source,
+        hf_revision=gen_cfg.hf_revision,
+    )
+    run.meta["dataset"] = {
+        "repo": dataset.repo,
+        "revision": dataset.revision,
+        "lang": args.lang,
+    }
+    run._save()
+
+    retriever = Retriever.build(
+        Embedder(emb_cfg, cache_dir=EMBEDDING_CACHE),
+        [x.passage_id for x in ds.passages],
+        [x.text for x in ds.passages],
+    )
+    retrieved = retriever.retrieve(
+        [q.question for q in chosen],
+        k=args.k,
+        gold_passage_ids=[q.gold_passage_id for q in chosen],
+    )
+    generator = Generator(gen_cfg)
+    records, rankings = [], []
+    for i, (q, hits) in enumerate(zip(chosen, retrieved, strict=True), start=1):
+        evidence = hits[: gen_cfg.context_passages]  # exactly what the model is shown
+        prompt = build_prompt(args.lang, q.question, evidence)
+        rankings.append(retrieval_row(q.qa_id, q.gold_passage_id, hits))
+        start = time.perf_counter()
+        gen, cached = generator.generate(prompt)
+        records.append(
+            Record(
+                id=q.qa_id,
+                lang=args.lang,
+                split=args.split,
+                source="natural",
+                question=q.question,
+                retrieved=evidence,
+                generator=gen_cfg.record_info(),
+                answer=gen.text,
             )
-            print(
-                f"[{i}/{len(chosen)}] {q.qa_id} gold@{gold_rank(hits)} "
-                f"{'cached' if cached else f'{time.perf_counter() - start:.0f}s'} "
-                f"answerable={q.answerable}",
-                flush=True,
-            )
-        write_jsonl(records, run.path("records.jsonl"))
-        with run.path("retrieval.jsonl").open("w", encoding="utf-8") as f:
-            for row in rankings:
-                print(json.dumps(row, ensure_ascii=False), file=f)
-        print(f"wrote {len(records)} records to {run.dir}", flush=True)
+        )
+        print(
+            f"[{i}/{len(chosen)}] {q.qa_id} gold@{gold_rank(hits)} "
+            f"{'cached' if cached else f'{time.perf_counter() - start:.0f}s'} "
+            f"answerable={q.answerable}",
+            flush=True,
+        )
+    write_jsonl(records, run.path("records.jsonl"))
+    with run.path("retrieval.jsonl").open("w", encoding="utf-8") as f:
+        for row in rankings:
+            print(json.dumps(row, ensure_ascii=False), file=f)
+    print(f"wrote {len(records)} records to {run.dir}", flush=True)
+    return records
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = build_parser()
+    args = p.parse_args(argv)
+    check_args(p, args)
+    with start_run(run_config(args), name=args.name) as run:
+        generate(args, run)
     return 0
 
 

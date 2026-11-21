@@ -44,6 +44,7 @@ def summary():
         "embedder": {"name": "me5-small", "model_id": "intfloat/multilingual-e5-small"},
         "nli": {"model_id": "org/nli", "device": "cuda"},
         "pilot_records": {"val": 10, "test": 12},
+        "pilot_set": {"used (val)": 5, "used (test)": 6, "injected NUMERICAL": 7},
         "retrieval_test": {"pooled": {**retrieval, "n_queries": 300}},
         "detection_test": {"ours": det(0.8), "b1_sentence_nli": det(0.6)},
     }
@@ -70,11 +71,13 @@ def test_replace_block_and_check(tmp_path, monkeypatch):
     assert out == f"x\n{mt.BEGIN}\nnew\n{mt.END}\ny\n"
     with pytest.raises(ValueError):
         mt.replace_block("no markers", "x")
-    s, r = tmp_path / "s.json", tmp_path / "R.md"
+    s, r, card = tmp_path / "s.json", tmp_path / "R.md", tmp_path / "card.md"
     s.write_text(json.dumps(summary()), "utf-8")
     r.write_text(doc, "utf-8")
+    card.write_text(mt.PILOT_BEGIN + "\n" + mt.PILOT_END + "\n", "utf-8")
     monkeypatch.setattr(mt, "SUMMARY", s)
     monkeypatch.setattr(mt, "README", r)
+    monkeypatch.setattr(mt, "DATASET_CARD", card)
     assert mt.main(["--check"]) == 1  # stale
     assert mt.main([]) == 0
     assert mt.main(["--check"]) == 0
@@ -85,3 +88,8 @@ def test_committed_readme_matches_committed_summary():
     if not mt.SUMMARY.exists():
         pytest.skip("no M0 summary committed yet")
     assert mt.main(["--check"]) == 0
+
+
+def test_pilot_set_block_lists_every_count():
+    md = mt.render_pilot_set(summary())
+    assert "**10 val / 12 test**" in md and "| injected NUMERICAL | 7 |" in md
