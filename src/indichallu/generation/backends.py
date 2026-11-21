@@ -79,6 +79,11 @@ class OllamaBackend:
             )
         self._verified = True
 
+    @property
+    def verified_digest(self) -> str | None:
+        """The pinned digest once :meth:`verify` has confirmed it, else None."""
+        return self.expected_digest if self._verified else None
+
     def request_body(self, prompt: str, decoding: dict[str, Any]) -> dict[str, Any]:
         return {
             "model": self.model,

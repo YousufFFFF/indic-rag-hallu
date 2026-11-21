@@ -72,7 +72,7 @@ def test_save_load_round_trip(tmp_path):
     assert loaded.search(q, 5) == index.search(q, 5)
     for _ in range(3):
         index.save(tmp_path / "idx")  # overwriting an existing index works
-    names = sorted(f.name for f in (tmp_path / "idx").iterdir())
+    names = sorted(f.name for f in (tmp_path / "idx").iterdir() if f.name != ".save.lock")
     assert names[0] == "CURRENT" and len(names) == 3  # current + previous version only
     assert all(n.startswith("v-") for n in names[1:])
     assert [f.name for f in tmp_path.iterdir()] == ["idx"]
@@ -279,24 +279,67 @@ def test_broken_version_is_not_retried_forever(tmp_path):
         PassageIndex.load(d)
 
 
-def test_cleanup_never_deletes_the_version_current_names(tmp_path, monkeypatch):
-    """Codex review on #20: a second writer publishes between our switch and our cleanup;
-    our cleanup must not delete the version CURRENT now names."""
+def test_concurrent_saves_are_serialised_and_both_stay_consistent(tmp_path):
+    """Codex review on #20: two writers saving the same directory concurrently. Saves are
+    serialised by a lock file, so the index always loads and names a complete version."""
+    import threading
+
+    d = tmp_path / "i"
+    PassageIndex.build(unit_rows(5, 4, 0), IDS[:5], meta={"model_id": "start"}).save(d)
+    errors = []
+
+    def writer(tag, seed):
+        try:
+            for _ in range(5):
+                PassageIndex.build(unit_rows(5, 4, seed), IDS[:5], meta={"model_id": tag}).save(d)
+                PassageIndex.load(d)
+        except Exception as e:  # noqa: BLE001 - collected and asserted below
+            errors.append(e)
+
+    threads = [threading.Thread(target=writer, args=(t, s)) for t, s in (("a", 1), ("b", 2))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    assert PassageIndex.load(d).meta["model_id"] in {"a", "b"}
+    assert len(list(d.glob("v-*"))) <= 2
+
+
+def test_a_held_lock_blocks_saves_and_a_crashed_holder_releases_it(tmp_path, monkeypatch):
+    """Codex review on #22: no stale-lock breaking. A live holder makes saves wait (here:
+    time out); when the holder process dies, even by SIGKILL, the OS frees the lock."""
+    import subprocess
+    import sys
+
     from indichallu.retrieval import index as index_module
 
-    d = PassageIndex.build(unit_rows(5, 4, 1), IDS[:5], meta={"model_id": "a"}).save(tmp_path / "i")
-    other = PassageIndex.build(unit_rows(5, 4, 2), IDS[:5], meta={"model_id": "other"})
-    real_pointer = index_module._read_pointer
-    state = {"published": False}
+    d = tmp_path / "i"
+    d.mkdir()
+    lock = d / ".save.lock"
+    lock.write_text("left over from an earlier run", "utf-8")  # an old file is not a lock
+    PassageIndex.build(unit_rows(5, 4), IDS[:5]).save(d)
 
-    def pointer_with_concurrent_save(directory):
-        if not state["published"]:  # first pointer read during our cleanup
-            state["published"] = True
-            other.save(directory)  # the other writer publishes now
-        return real_pointer(directory)
-
-    mine = PassageIndex.build(unit_rows(5, 4, 3), IDS[:5], meta={"model_id": "mine"})
-    monkeypatch.setattr(index_module, "_read_pointer", pointer_with_concurrent_save)
-    mine.save(d)
-    monkeypatch.setattr(index_module, "_read_pointer", real_pointer)
-    assert PassageIndex.load(d).meta["model_id"] == "other"  # still loadable
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import sys, time; from pathlib import Path; "
+            "from indichallu.retrieval.index import _SaveLock; "
+            "lock = _SaveLock(Path(sys.argv[1])).__enter__(); print('held', flush=True); "
+            "time.sleep(60)",
+            str(lock),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout.readline().strip() == "held"
+        monkeypatch.setattr(index_module, "LOCK_TIMEOUT_S", 0.3)
+        with pytest.raises(TimeoutError):
+            PassageIndex.build(unit_rows(5, 4, 1), IDS[:5]).save(d)
+    finally:
+        holder.kill()  # a crash: the holder never runs __exit__
+        holder.wait()
+    PassageIndex.build(unit_rows(5, 4, 2), IDS[:5], meta={"model_id": "after"}).save(d)
+    assert PassageIndex.load(d).meta["model_id"] == "after"

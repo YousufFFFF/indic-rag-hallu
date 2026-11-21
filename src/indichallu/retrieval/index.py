@@ -32,6 +32,71 @@ import numpy as np
 
 FORMAT_VERSION = 1
 LOAD_ATTEMPTS = 5  # retries when a concurrent save moves CURRENT during a load
+LOCK_TIMEOUT_S = 120.0  # how long a save waits for another writer
+
+
+def _try_lock(fd: int) -> bool:
+    """Non-blocking exclusive OS lock on an open file; False if another holder has it."""
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
+def _unlock(fd: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+class _SaveLock:
+    """Exclusive OS-level lock (``flock`` / ``msvcrt.locking``) on a lock file.
+
+    The operating system releases the lock when its holder exits, even after a crash,
+    so there are no stale locks to detect or break (Codex review on #22: breaking a
+    stale lock file by age raced between two waiting savers). The lock file itself is
+    never deleted; deleting a locked file would let a second writer lock a new inode.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.fd: int | None = None
+
+    def __enter__(self) -> _SaveLock:
+        import time
+
+        fd = os.open(self.path, os.O_CREAT | os.O_RDWR)
+        deadline = time.monotonic() + LOCK_TIMEOUT_S
+        while not _try_lock(fd):
+            if time.monotonic() > deadline:
+                os.close(fd)
+                raise TimeoutError(f"{self.path}: another save holds the lock")
+            time.sleep(0.05)
+        self.fd = fd
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        if self.fd is not None:
+            try:
+                _unlock(self.fd)
+            finally:
+                os.close(self.fd)
+                self.fd = None
 
 
 def _read_pointer(directory: Path) -> str:
@@ -134,9 +199,18 @@ class PassageIndex:
     # --- persistence -------------------------------------------------------------------
 
     def save(self, directory: str | Path) -> Path:
-        """Write the index to ``directory`` (replaced atomically if it exists)."""
+        """Write the index to ``directory`` (replaced atomically if it exists).
+
+        Saves to one directory are serialised by an exclusive lock file, so a pointer
+        switch and a cleanup can never interleave between two writers. Readers don't take
+        the lock (see :meth:`load`).
+        """
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
+        with _SaveLock(directory / ".save.lock"):
+            return self._save_locked(directory)
+
+    def _save_locked(self, directory: Path) -> Path:
         current = directory / "CURRENT"
         previous = current.read_text("utf-8").strip() if current.exists() else None
         version = Path(tempfile.mkdtemp(dir=directory, prefix="v-"))
@@ -157,17 +231,10 @@ class PassageIndex:
             for leftover in directory.glob(f".CURRENT.{version.name}.tmp"):
                 leftover.unlink(missing_ok=True)
             raise
-        # Keep the new version, the one before it (a reader may be mid-load on it), and
-        # whatever CURRENT names right now: never delete a published version, even if
-        # another save switched CURRENT after ours. (One pipeline writes an index; this
-        # guard only makes an unexpected second writer harmless, it doesn't serialise.)
-        keep = {version.name, previous}
-        for old in sorted(directory.glob("v-*")):
-            try:
-                keep.add(_read_pointer(directory))
-            except (OSError, ValueError):
-                pass
-            if old.is_dir() and old.name not in keep:
+        # Under the save lock nobody else can switch CURRENT, so keeping the new version
+        # and the one before it (a reader may be mid-load on it) is safe.
+        for old in directory.glob("v-*"):
+            if old.is_dir() and old.name not in (version.name, previous):
                 shutil.rmtree(old, ignore_errors=True)
         return directory
 
