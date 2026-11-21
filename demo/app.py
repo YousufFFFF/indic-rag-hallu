@@ -4,11 +4,17 @@
 
 Two modes:
 
-* **Check an answer** (seconds): paste any Hindi answer. The demo retrieves evidence for the
-  question from the Hindi IndicQA corpus and marks every claim SUPPORTED / UNSUPPORTED /
-  CONTRADICTED, linked to its evidence passage.
-* **Generate and check** (minutes on CPU): the local generator (Ollama) answers from the
-  retrieved passages first.
+* **Check an answer**: paste any Hindi answer. The demo retrieves evidence for the question
+  from the Hindi IndicQA corpus and marks every claim SUPPORTED / UNSUPPORTED /
+  CONTRADICTED, linked to its evidence passage. About 10 minutes on a laptop CPU (the
+  2-claim example took 643 s on a 4-core i5; the NLI model is the slow part). On a GPU it
+  should take seconds: the pilot ran ~12k NLI pairs in ~15 min on a T4.
+* **Generate and check**: the local generator (Ollama) answers from the retrieved passages
+  first. 20+ minutes on a laptop CPU: generation takes 2-17 min (a 3-passage Hindi prompt is
+  ~10k tokens, D-023), then the check.
+
+The corpus is Hindi Wikipedia (IndicQA), so ask about topics it covers; for anything else the
+retrieved passages are unrelated and claims come out UNSUPPORTED.
 
 Thresholds are the val-tuned ones from results/m0/pilot.json when present (D-024/D-025).
 """
@@ -35,8 +41,16 @@ from indichallu.viz import render_answer, render_claims, render_passages
 LANG = "hi"
 EMBEDDER = os.environ.get("DEMO_EMBEDDER", "me5-small")
 PILOT = REPO_ROOT / "results" / "m0" / "pilot.json"
-EXAMPLE_Q = "इस योजना के लिए पात्रता क्या है?"
-EXAMPLE_A = "यह योजना राज्य सरकार द्वारा चलाई जाती है और आवेदक की आयु 21 वर्ष होनी चाहिए।"
+# A real IndicQA test question with pilot record hi-q001411-h as the answer: the gold
+# passage's sentence with its year changed (synthetic NUMERICAL/TEMPORAL injection, D-025).
+# In the pilot run our detector marked the year claim CONTRADICTED and the rest SUPPORTED.
+# (The slide-17 scheme example is not in this corpus, so its claims could only be UNSUPPORTED.)
+EXAMPLE_ID = "hi-q001411-h"
+EXAMPLE_Q = "सारनाथ क्षेत्र का पहला उत्खनन कब किया गया था?"
+EXAMPLE_A = (
+    "इस क्षेत्र का सर्वप्रथम सीमित उत्खनन कर्नल कैकेंजी ने 1804 ई. में करवाया लेकिन उनको कोई "
+    "महत्त्वपूर्ण सफलता नहीं मिली।"
+)
 
 
 @lru_cache(maxsize=1)
@@ -89,11 +103,15 @@ with gr.Blocks(title="IndicRAG-Hallu demo") as demo:
         "## Does the retrieved evidence support this answer?\n"
         "Hindi IndicQA corpus · claims are checked against the top-3 retrieved passages "
         "(green = SUPPORTED, red = UNSUPPORTED, orange = CONTRADICTED; hover for evidence). "
-        "**Pilot (M0).**"
+        "**Pilot (M0).** "
+        f"The example is pilot record `{EXAMPLE_ID}`: a real IndicQA question, answered with "
+        "its passage's sentence with the year changed."
     )
     q = gr.Textbox(label="प्रश्न (question)", value=EXAMPLE_Q)
     a = gr.Textbox(label="उत्तर (answer to check)", value=EXAMPLE_A, lines=3)
-    g = gr.Checkbox(label="Generate the answer with the local LLM instead (slow on CPU)")
+    g = gr.Checkbox(
+        label="Generate the answer with the local LLM instead (20+ min on a laptop CPU)"
+    )
     btn = gr.Button("Check", variant="primary")
     out_answer = gr.HTML()
     out_claims = gr.Dataframe(headers=["claim", "verdict", "type", "evidence", "entail"], wrap=True)
