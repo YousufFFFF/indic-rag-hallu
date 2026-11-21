@@ -131,14 +131,28 @@ class Generator:
         safe_model = cfg.model.replace("/", "__").replace(":", "_")
         self.cache = GenerationCache(Path(cache_dir or DEFAULT_CACHE_DIR) / f"{safe_model}.jsonl")
 
+    def _trusted(self, entry: dict[str, Any]) -> bool:
+        """An Ollama entry is reused only if it records that its weights were verified
+        against the pinned digest when it was generated (Codex review on #23: entries
+        written before the digest check existed must not be replayed as pinned output)."""
+        if self.cfg.backend != "ollama" or self.cfg.ollama_digest is None:
+            return True
+        return entry.get("verified_digest") == self.cfg.ollama_digest
+
     def generate(self, prompt: str) -> tuple[Generation, bool]:
         """(generation, from_cache)."""
         key = cache_key(self.cfg.identity(), prompt)
         hit = self.cache.get(key)
-        if hit is not None:
+        if hit is not None and self._trusted(hit):
             return Generation(**hit["generation"]), True
         gen = self.backend.generate(prompt, self.cfg.decoding)
         self.cache.put(
-            key, {"identity": self.cfg.identity(), "prompt": prompt, "generation": asdict(gen)}
+            key,
+            {
+                "identity": self.cfg.identity(),
+                "prompt": prompt,
+                "generation": asdict(gen),
+                "verified_digest": getattr(self.backend, "verified_digest", None),
+            },
         )
         return gen, False

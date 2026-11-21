@@ -72,7 +72,7 @@ def test_save_load_round_trip(tmp_path):
     assert loaded.search(q, 5) == index.search(q, 5)
     for _ in range(3):
         index.save(tmp_path / "idx")  # overwriting an existing index works
-    names = sorted(f.name for f in (tmp_path / "idx").iterdir())
+    names = sorted(f.name for f in (tmp_path / "idx").iterdir() if f.name != ".save.lock")
     assert names[0] == "CURRENT" and len(names) == 3  # current + previous version only
     assert all(n.startswith("v-") for n in names[1:])
     assert [f.name for f in tmp_path.iterdir()] == ["idx"]
@@ -303,25 +303,43 @@ def test_concurrent_saves_are_serialised_and_both_stay_consistent(tmp_path):
         t.join()
     assert errors == []
     assert PassageIndex.load(d).meta["model_id"] in {"a", "b"}
-    assert not (d / ".save.lock").exists()
     assert len(list(d.glob("v-*"))) <= 2
 
 
-def test_save_waits_for_and_breaks_a_stale_lock(tmp_path, monkeypatch):
-    import os
-    import time
+def test_a_held_lock_blocks_saves_and_a_crashed_holder_releases_it(tmp_path, monkeypatch):
+    """Codex review on #22: no stale-lock breaking. A live holder makes saves wait (here:
+    time out); when the holder process dies, even by SIGKILL, the OS frees the lock."""
+    import subprocess
+    import sys
 
     from indichallu.retrieval import index as index_module
 
     d = tmp_path / "i"
     d.mkdir()
     lock = d / ".save.lock"
-    lock.write_text("12345", "utf-8")
-    old = time.time() - index_module.STALE_LOCK_S - 5
-    os.utime(lock, (old, old))  # left behind by a crashed writer
+    lock.write_text("left over from an earlier run", "utf-8")  # an old file is not a lock
     PassageIndex.build(unit_rows(5, 4), IDS[:5]).save(d)
-    assert PassageIndex.load(d).passage_ids == IDS[:5] and not lock.exists()
-    lock.write_text("12345", "utf-8")  # a live lock: times out instead of corrupting
-    monkeypatch.setattr(index_module, "LOCK_TIMEOUT_S", 0.2)
-    with pytest.raises(TimeoutError):
-        PassageIndex.build(unit_rows(5, 4), IDS[:5]).save(d)
+
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import sys, time; from pathlib import Path; "
+            "from indichallu.retrieval.index import _SaveLock; "
+            "lock = _SaveLock(Path(sys.argv[1])).__enter__(); print('held', flush=True); "
+            "time.sleep(60)",
+            str(lock),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout.readline().strip() == "held"
+        monkeypatch.setattr(index_module, "LOCK_TIMEOUT_S", 0.3)
+        with pytest.raises(TimeoutError):
+            PassageIndex.build(unit_rows(5, 4, 1), IDS[:5]).save(d)
+    finally:
+        holder.kill()  # a crash: the holder never runs __exit__
+        holder.wait()
+    PassageIndex.build(unit_rows(5, 4, 2), IDS[:5], meta={"model_id": "after"}).save(d)
+    assert PassageIndex.load(d).meta["model_id"] == "after"

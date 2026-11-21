@@ -4,8 +4,9 @@ An NLI model gives P(entail), P(neutral), P(contradict) for (premise=evidence,
 hypothesis=claim). IndicQA passages are often longer than mDeBERTa's 512 tokens, and
 truncation would silently drop evidence. So each passage is split into windows of up to
 ``window_sentences`` consecutive sentences, every window is scored, and the passage gets
-the probabilities of its most decisive window, the one with the highest
-max(entail, contradict) (DECISIONS D-024).
+the probabilities of its **most entailing** window (DECISIONS D-024, D-027): evidence
+supports a claim if any part of it does, and a contradiction from an unrelated window of
+the same passage must not hide a window that states the claim.
 
 Premise and hypothesis go through the same normalisation (NFC, IndicNLP, ASCII digits),
 so "२१" in a passage matches "21" in a claim.
@@ -32,16 +33,41 @@ class NLIModel(Protocol):
         ...
 
 
-class HFNLIModel:
-    """A Hugging Face sequence-classification NLI model at a pinned revision."""
+def resolve_device(device: str | None, cuda_available: bool) -> str:
+    """``None``/``"auto"`` -> CUDA when available, else CPU; anything else is used as given.
 
-    def __init__(self, model_id: str, revision: str, max_length: int = 512, batch_size: int = 16):
+    >>> resolve_device(None, True), resolve_device("auto", False), resolve_device("cpu", True)
+    ('cuda', 'cpu', 'cpu')
+    """
+    if device in (None, "auto"):
+        return "cuda" if cuda_available else "cpu"
+    return device
+
+
+class HFNLIModel:
+    """A Hugging Face sequence-classification NLI model at a pinned revision.
+
+    Runs on a CUDA GPU when one is available (D-026): on the project's CPU laptop the
+    pilot's ~12k pairs take many hours, on a free T4 minutes. Same weights, same inputs;
+    only floating-point rounding differs between devices.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        revision: str,
+        max_length: int = 512,
+        batch_size: int = 16,
+        device: str | None = None,
+    ):
         import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         self.torch = torch
+        self.device = resolve_device(device, torch.cuda.is_available())
         self.tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_id, revision=revision)
+        self.model.to(self.device)
         self.model.eval()
         id2label = {int(i): name.lower() for i, name in self.model.config.id2label.items()}
         try:  # map the model's own label order to (entail, neutral, contradict)
@@ -88,10 +114,11 @@ class HFNLIModel:
                 return_tensors="pt",
             )
             with self.torch.no_grad():
-                logits = self.model(**enc).logits
-            out.append(self.torch.softmax(logits, dim=-1)[:, self.order].numpy())
+                logits = self.model(**enc.to(self.device)).logits
+            probs = self.torch.softmax(logits.float(), dim=-1)[:, self.order]
+            out.append(probs.cpu().numpy())
         probs = np.concatenate(out) if out else np.zeros((0, 3))
-        return reduce_most_decisive(probs, owner, len(pairs))
+        return reduce_max_entail(probs, owner, len(pairs))
 
 
 CHUNK_OVERLAP = 32  # tokens shared by consecutive premise chunks
@@ -134,11 +161,17 @@ def premise_chunk_spans(n: int, budget: int) -> list[tuple[int, int]]:
     return chunk_spans(n, budget, min(CHUNK_OVERLAP, budget // 4))
 
 
-def reduce_most_decisive(probs: np.ndarray, owner: Sequence[int], n: int) -> np.ndarray:
-    """Per original pair, the row of its most decisive piece: highest max(entail, contradict)."""
+def reduce_max_entail(probs: np.ndarray, owner: Sequence[int], n: int) -> np.ndarray:
+    """Per owner, the probability row of its most entailing piece (first one on ties).
+
+    Used for the token chunks of one premise and for the windows of one passage (D-027).
+    The earlier rule, "most decisive" = highest max(entail, contradict), let a confident
+    contradiction from a piece that does not mention the claim override a piece that
+    states it word for word: verbatim faithful answers came out CONTRADICTED.
+    """
     best = np.full((n, 3), np.nan)
     for row, i in zip(probs, owner, strict=True):
-        if np.isnan(best[i, 0]) or max(row[0], row[2]) > max(best[i, 0], best[i, 2]):
+        if np.isnan(best[i, 0]) or row[0] > best[i, 0]:
             best[i] = row
     return best
 
@@ -205,11 +238,9 @@ class Aligner:
                     pairs.append((w, h))
                     owners.append((ci, pi))
         probs = self._predict(pairs)
-        best: dict[tuple[int, int], np.ndarray] = {}
-        for owner, pr in zip(owners, probs, strict=True):
-            current = best.get(owner)
-            if current is None or max(pr[0], pr[2]) > max(current[0], current[2]):
-                best[owner] = pr
+        index = {o: k for k, o in enumerate(dict.fromkeys(owners))}
+        reduced = reduce_max_entail(probs, [index[o] for o in owners], len(index))
+        best = {o: reduced[k] for o, k in index.items()}
         out = []
         for ci in range(len(claims)):
             row = []

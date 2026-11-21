@@ -384,3 +384,21 @@ def test_moderate_drift_is_still_exact_within_budget():
     r = indicnlp_normalize(source, "hi")
     for k in range(300):
         assert r.offsets.to_source(2 * k, 2 * k + 2) == (300 + k, 301 + k)
+
+
+def test_language_config_is_parsed_once_per_process(monkeypatch):
+    """Profiling the M0 pilot: normalize() used to re-read languages.yaml on every call."""
+    from indichallu.text import normalize as nz
+
+    calls = []
+    real = nz.load_languages
+    monkeypatch.setattr(nz, "load_languages", lambda: calls.append(1) or real())
+    nz._supported_languages.cache_clear()
+    try:
+        for _ in range(5):
+            nz.normalize("योजना १२", "hi")
+        assert len(calls) == 1
+        with pytest.raises(ValueError, match="unsupported language"):
+            nz.normalize("x", "xx")
+    finally:
+        nz._supported_languages.cache_clear()

@@ -29,6 +29,20 @@ def f(x, digits=3) -> str:
     return "—" if x is None else f"{x:.{digits}f}"
 
 
+def flag_everything_note(det: dict) -> str:
+    """Scale reference: the response F1 of flagging every answer, from the test set's own
+    label balance (precision = share of hallucinated records, recall = 1)."""
+    pooled = next(iter(det.values()))["response"]["pooled"] if det else {}
+    pos, n = pooled.get("positives"), pooled.get("n")
+    if not pos or not n:
+        return "Reference (flag every answer as hallucinated): —."
+    p = pos / n
+    return (
+        f"Reference: flagging every answer as hallucinated gives response F1 "
+        f"{f(2 * p / (1 + p))} on this test set ({pos} of {n} records hallucinated)."
+    )
+
+
 def render(summary: dict) -> str:
     det = summary["detection_test"]
     ret = summary["retrieval_test"]["pooled"]
@@ -37,7 +51,8 @@ def render(summary: dict) -> str:
         f"`{summary['run_id']}`, commit `{summary['git_commit'][:7]}`). **{summary['label']}.**_",
         "",
         f"Retrieval: `{summary['embedder']['model_id']}` over the Hindi IndicQA corpus "
-        f"(test questions, n = {ret['n_queries']}). NLI: `{summary['nli']['model_id']}`. "
+        f"(test questions, n = {ret['n_queries']}). NLI: `{summary['nli']['model_id']}` "
+        f"(device: {summary['nli'].get('device') or '—'}). "
         f"Pilot set: {summary['pilot_records']['val']} val / {summary['pilot_records']['test']} "
         "test records (faithful vs injected NUMERICAL/TEMPORAL errors); thresholds tuned on "
         "val only.",
@@ -47,9 +62,9 @@ def render(summary: dict) -> str:
         f"| `{summary['embedder']['name']}` | {f(ret['recall@1'])} | {f(ret['recall@3'])} | "
         f"{f(ret['recall@5'])} | {f(ret['recall@10'])} | {f(ret['ndcg@10'])} | {f(ret['mrr'])} |",
         "",
-        "| Detection (pilot test) | Response F1 | Balanced acc. | AUROC | Span F1 | Token IoU "
-        "| Exact-span F1 | Thresholds (entail / contradict) |",
-        "|---|---:|---:|---:|---:|---:|---:|---|",
+        "| Detection (pilot test) | Precision | Recall | Response F1 | Balanced acc. | AUROC "
+        "| Span F1 | Token IoU | Exact-span F1 | Thresholds (entail / contradict) |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     names = {
         "ours": "Ours (decompose → align → aggregate)",
@@ -62,10 +77,12 @@ def render(summary: dict) -> str:
         r, s = d["response"]["pooled"], d["spans"]["pooled"]
         th = d["thresholds"]
         lines.append(
-            f"| {label} | {f(r['f1'])} | {f(r['balanced_accuracy'])} | {f(r['auroc'])} | "
+            f"| {label} | {f(r.get('precision'))} | {f(r.get('recall'))} | {f(r['f1'])} | "
+            f"{f(r['balanced_accuracy'])} | {f(r['auroc'])} | "
             f"{f(s['span_f1'])} | {f(s['token_iou'])} | {f(s['exact_f1'])} | "
             f"{th['entail']:.2f} / {th['contradict']:.2f} |"
         )
+    lines += ["", flag_everything_note(det)]
     lines += [
         "",
         "| Span F1 by error type (pilot test) | "

@@ -133,7 +133,11 @@ def main(argv: list[str] | None = None) -> int:
                 "model_id": emb_cfg.model_id,
                 "revision": emb_cfg.revision,
             },
-            "nli": {"model_id": det_cfg["nli"]["model_id"], "revision": det_cfg["nli"]["revision"]},
+            "nli": {
+                "model_id": det_cfg["nli"]["model_id"],
+                "revision": det_cfg["nli"]["revision"],
+                "device": getattr(nli, "device", None),  # D-026
+            },
             "dataset": {"repo": dataset.repo, "revision": dataset.revision, "lang": args.lang},
             "retrieval_test": retrieval,
             "pilot_set": dict(pilot_stats),

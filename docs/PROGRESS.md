@@ -4,6 +4,23 @@ Dated log of what was done, what broke, and what's next. Newest first.
 
 ---
 
+## 2026-11-21
+
+**Done**
+- #20–#23 merged (index + retrieval, metrics, generation, detection); docs conflicts in DECISIONS/PROGRESS resolved by keeping both sides in number order.
+- **GPU path for the pilot (D-026).** `HFNLIModel` uses CUDA when available; `notebooks/m0_pilot_gpu.ipynb` reruns the pilot on a free Kaggle/Colab T4 with the same arguments; `normalize()` no longer re-parses the languages config on every call.
+- **M0 pilot results (T35), second Kaggle T4 run, commit ff41974 with the D-027 fix.** `results/m0/pilot.json` committed; the README block is generated from it. Test: ours AUROC 0.735 vs B1 0.673; response P/R/F1 ours 0.900 / 0.102 / 0.184, B1 0.833 / 0.114 / 0.200; span F1 0.039 / 0.032 (flagging everything: F1 0.667). 87 of 88 faithful answers SUPPORTED; 79 of 88 injected errors also SUPPORTED.
+
+**Broke / learned**
+- **The threshold objective is degenerate for this set.** D-024 tunes on character-level span F1, but predicted spans are whole claims (median 96 chars) and gold spans are the changed number (median 4 chars), so flagging a claim costs more false characters than it gains and both detectors' thresholds land at the bottom of the grid. Not changed after seeing test: M1 fixes its objective (and token-level spans from the typed verifiers) before its own evaluation.
+- **First complete pilot run (Kaggle T4, commit a8d0594) exposed an alignment flaw (D-027).** Test response F1 ours 0.549 / B1 0.506, span F1 0.034 / 0.022 (below the 0.667 of flagging everything). 30 of 88 faithful test answers, all verbatim in the evidence, had a claim scored as contradicted: the "most decisive window" rule let an unrelated window's contradiction hide the window stating the claim. Fixed to the most entailing window; the pilot is re-run, and these numbers are kept here only as the record of the bug.
+- It also confirmed the expected NLI weakness: injected number/date swaps are often still entailed (e.g. a changed year at entail 0.73), the motivation for the typed verifiers (C2).
+- The first full CPU pilot run was still in its NLI step after 4+ hours. Profiling: ~12k NLI pairs, and the mDeBERTa forward pass on 4 laptop cores is the bottleneck, not text processing (D-026).
+
+**Next**
+- Bundle 5 (one-command pipeline, outcome panel, dataset-card block, verified related work), then ~10 generated answers for Yousuf's Hindi spot-check (T36).
+- Fix the notebook so a re-run in the same session works (it deleted its own working directory).
+
 ## 2026-11-20
 
 **Done**
