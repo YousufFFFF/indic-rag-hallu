@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from indichallu.data.schema import Record, SpanType, Verdict
+from indichallu.data.schema import Record, RetrievedPassage, SpanType, Verdict
 from indichallu.detection.aggregate import Thresholds, decide, guess_type
 from indichallu.detection.align import Aligner, premise_windows
 from indichallu.detection.decompose import decompose
@@ -254,12 +254,36 @@ def test_chunks_cover_every_token_within_budget(n, size, overlap):
         chunk_spans(10, 4, 4)
 
 
-def test_most_decisive_piece_wins_per_original_pair():
-    from indichallu.detection.align import reduce_most_decisive
+def test_most_entailing_piece_wins_per_original_pair():
+    """D-027: a confident contradiction from one piece never hides an entailing piece."""
+    from indichallu.detection.align import reduce_max_entail
 
-    probs = np.array([[0.2, 0.7, 0.1], [0.9, 0.1, 0.0], [0.1, 0.2, 0.7], [0.3, 0.6, 0.1]])
-    out = reduce_most_decisive(probs, owner=[0, 0, 1, 1], n=2)
-    assert out[0].tolist() == [0.9, 0.1, 0.0] and out[1].tolist() == [0.1, 0.2, 0.7]
+    probs = np.array(
+        [[0.2, 0.7, 0.1], [0.9, 0.1, 0.0], [0.01, 0.01, 0.98], [0.3, 0.6, 0.1], [0.3, 0.1, 0.6]]
+    )
+    out = reduce_max_entail(probs, owner=[0, 0, 1, 1, 1], n=2)
+    assert out[0].tolist() == [0.9, 0.1, 0.0]
+    assert out[1].tolist() == [0.3, 0.6, 0.1]  # first of the tied most-entailing pieces
+
+
+class _WindowNLI:
+    """Entails a claim only from the window that contains it word for word; every other
+    window "contradicts" it with high confidence (as mDeBERTa did on the M0 pilot)."""
+
+    def predict(self, pairs):
+        return np.array([[0.95, 0.04, 0.01] if h in p else [0.01, 0.01, 0.98] for p, h in pairs])
+
+
+def test_a_verbatim_window_supports_the_claim_despite_contradicting_windows():
+    """Regression for the first GPU pilot run: verbatim faithful answers were CONTRADICTED
+    because an unrelated window's contradiction beat the window that states the claim."""
+    from indichallu.detection.align import Aligner
+
+    text = " ".join(f"वाक्य {i} में तथ्य {i} है।" for i in range(9))
+    passage = RetrievedPassage(passage_id="p1", text=text, score=0.9, rank=1, is_gold=True)
+    aligner = Aligner(_WindowNLI(), "hi", window_sentences=3, window_stride=2)
+    (row,) = aligner.score(["वाक्य 4 में तथ्य 4 है"], [passage])
+    assert row[0].entail == pytest.approx(0.95) and row[0].contradict == pytest.approx(0.01)
 
 
 def test_window_stride_keeps_adjacent_sentences_together_and_reaches_the_end():
