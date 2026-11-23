@@ -67,6 +67,7 @@ class ResponseLabel(StrEnum):
 
     FAITHFUL = "faithful"
     HALLUCINATED = "hallucinated"
+    REFUSAL = "refusal"  # declines to answer; scored separately (D-028, D-029)
 
 
 class Source(StrEnum):
@@ -188,6 +189,8 @@ class Labels(_Strict):
             raise ValueError("a hallucinated response needs at least one labelled span")
         if self.response is ResponseLabel.FAITHFUL and self.spans:
             raise ValueError("a faithful response cannot have hallucinated spans")
+        if self.response is ResponseLabel.REFUSAL and self.spans:
+            raise ValueError("a refusal cannot have hallucinated spans")
         ordered = sorted(self.spans, key=lambda s: (s.start, s.end))
         for a, b in zip(ordered, ordered[1:], strict=False):
             if b.start < a.end:
@@ -207,6 +210,11 @@ class Record(_Strict):
     retrieved: list[RetrievedPassage] = Field(min_length=1)
     generator: GeneratorInfo | None = None
     answer: str
+    # Does the question have an answer in its gold passage (IndicQA)? None = unknown.
+    answerable: bool | None = None
+    # Predicted: the answer declines to answer, so no claims are scored (D-029).
+    # None = not checked (e.g. the M0 protocol scores refusals like any answer).
+    refusal: bool | None = None
     claims: list[Claim] = Field(default_factory=list)
     labels: Labels | None = None
 
@@ -224,6 +232,8 @@ class Record(_Strict):
         if ranks != list(range(1, len(ranks) + 1)):
             raise ValueError(f"retrieved ranks must be 1..n in order, got {ranks}")
         known = set(ids)
+        if self.refusal and self.claims:
+            raise ValueError("a predicted refusal has no claims to score")
 
         n = len(self.answer)
         for i, c in enumerate(self.claims):

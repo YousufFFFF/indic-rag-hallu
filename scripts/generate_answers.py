@@ -134,6 +134,7 @@ def generate(args: argparse.Namespace, run: Run) -> list[Record]:
                 retrieved=evidence,
                 generator=gen_cfg.record_info(),
                 answer=gen.text,
+                answerable=q.answerable,
             )
         )
         print(

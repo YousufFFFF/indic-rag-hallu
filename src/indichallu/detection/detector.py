@@ -20,6 +20,7 @@ from indichallu.data.schema import Record
 from indichallu.detection.aggregate import Thresholds, decide
 from indichallu.detection.align import Aligner, HFNLIModel, NLIModel
 from indichallu.detection.decompose import TRAILING, decompose
+from indichallu.detection.refusal import inside, refusal_sentences
 from indichallu.text.sentseg import Segment, sentences
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -65,9 +66,13 @@ class Detector:
         window_sentences: int = 3,
         ascii_digits: bool = True,
         window_stride: int = 1,
+        refusals: str = "claims",
     ):
+        if refusals not in ("claims", "separate"):
+            raise ValueError(f"refusals must be 'claims' or 'separate', got {refusals!r}")
         self.aligner = Aligner(nli, lang, window_sentences, ascii_digits, window_stride)
         self.lang, self.thresholds, self.claim_fn = lang, thresholds, claim_fn
+        self.refusals = refusals  # from the evaluation protocol (D-028, D-029)
 
     @classmethod
     def from_config(
@@ -77,6 +82,7 @@ class Detector:
         nli: NLIModel | None = None,
         claim_fn: ClaimFn = decompose,
         thresholds: Thresholds | None = None,
+        refusals: str = "claims",
     ) -> Detector:
         return cls(
             nli or load_nli(cfg),
@@ -86,18 +92,31 @@ class Detector:
             cfg["nli"].get("window_sentences", 3),
             cfg.get("normalize", {}).get("ascii_digits", True),
             cfg["nli"].get("window_stride", 1),
+            refusals,
         )
 
     def detect(self, record: Record) -> Record:
-        """A copy of ``record`` with ``claims`` filled in (labels untouched)."""
+        """A copy of ``record`` with ``claims`` filled in (labels untouched).
+
+        With ``refusals="separate"`` (D-029), refusal sentences are not claims: an answer
+        made only of them is a refusal (``refusal=True``, no claims); otherwise they are
+        dropped and the rest is scored (``refusal=False``).
+        """
         if record.lang != self.lang:
             raise ValueError(f"detector is for {self.lang!r}, record is {record.lang!r}")
         segs = self.claim_fn(record.answer, record.lang)
+        refusal = None
+        if self.refusals == "separate":
+            ref = refusal_sentences(record.answer, record.lang)
+            segs = [s for s in segs if not inside(s, ref)]
+            refusal = bool(ref) and not segs
+            if refusal:
+                return Record.model_validate({**record.model_dump(), "claims": [], "refusal": True})
         matrix = self.aligner.score([s.text for s in segs], record.retrieved)
         claims = [
             decide(s.text, s.start, s.end, row, self.thresholds)
             for s, row in zip(segs, matrix, strict=True)
         ]
         return Record.model_validate(
-            {**record.model_dump(), "claims": [c.model_dump() for c in claims]}
+            {**record.model_dump(), "claims": [c.model_dump() for c in claims], "refusal": refusal}
         )
