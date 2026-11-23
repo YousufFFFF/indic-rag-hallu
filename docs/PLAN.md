@@ -1,6 +1,6 @@
 # PLAN — Hallucination Detection in RAG for Low-Resource Indic Languages
 
-*Last updated: 2026-11-24 · Status: M0 complete (pilot; HF Space optional); M1 planned in §3, waiting on Q14–Q16.*
+*Last updated: 2026-11-24 · Status: M0 complete (pilot; HF Space optional); M1 planned in §3 (Q14–Q16 answered).*
 
 **Team:** Mohammed Yousuf Ansari (lead) · Mukta Dhage · Sneha Shinde · Srushti Kondhalkar
 **Guide:** Prof. [GUIDE NAME — open question Q7]
@@ -379,18 +379,23 @@ Question numbers stay fixed so references elsewhere in this file still work.
 | Q6 (part) | Who reviews the Hindi prompts? | **Yousuf**, for T22 and T36. |
 | Q9 | OK to show the team's names publicly? | **Yes.** |
 
+### Answered (2026-11-24)
+
+| # | Question | Answer |
+|---|---|---|
+| Q14 | M1 generators: OSI licences only, or open-weight models too? | **Open-weight allowed**: Qwen (Apache-2.0) plus Llama-3-Nanda-10B and/or Llama-3.1-8B / Gemma 3, with licences cited. Each 7–10B model is a >10 GB download, runs only on Kaggle/Colab, and is still approved one by one. |
+| Q15 | Download `BAAI/bge-m3` and `intfloat/multilingual-e5-large` for T55? | **Yes, both**, on Kaggle/Colab for the GPU runs; the laptop keeps `multilingual-e5-small` for tests. |
+| Q16 | Approve the M1 evaluation protocol (§3)? | **Approved as proposed**; becomes D-028 in T43, before any M1 number exists. |
+| Q6 (part) | Which languages do Mukta, Sneha and Srushti speak natively? | **Marathi** and **Hindi**. So Hindi and Marathi can each have native prompt review and two annotators (C1 gold set; Hindi agreement measurable within the team). Other in-scope languages get synthetic data and sentence-level claims, with prompts reviewed outside the team or marked unreviewed. Who speaks which is still to be named (T51). |
+
 ### Still open
 
 | # | Question | Why it matters | Blocks |
 |---|---|---|---|
 | Q4 | CLAUDE.md §4.4 lists `MBZUAI/Llama-3-Nanda-10B-Chat`. On HF it redirects to `IFM/Llama-3-Nanda-10B-Chat`. OK to update CLAUDE.md to the `IFM/` ID? | Configs must pin the real ID | M1 |
-| Q6 | Which languages do Mukta, Sneha and Srushti speak natively? The gold set needs **two annotators per language** for the ≥20% double-annotated subset. If Yousuf is the only Hindi speaker, Hindi agreement can't be measured within the team. | Gold-set languages (C1), κ/α (D63) | M2 |
 | Q7 | Guide's name, and faculty requirements and date for the Stage II review | Deck placeholders; M3 timing | — |
 | Q8 | Target paper venue and deadline | Sets M4 | M4 |
 | Q10 | Confirm or change the proposed owner per track (Y / M / S / K) in §2 | Task assignment | Week 1 |
 | Q11 | M0 corpus: IndicQA contexts only (small, so retrieval is easy), or also add Hindi Wikipedia distractors from `ai4bharat/Indic-Rag-Suite` (download size per language not yet measured)? | Realism of retrieval metrics | T11 |
 | Q12 | Licences: `ai4bharat/MSMARCO-XI` (defers to MS MARCO's non-commercial terms), `ai4bharat/IndicXNLI-Translated` and `ai4bharat/IndicBERTv2-MLM-only-XNLI` (none declared), `google/muril-large-cased` (none on HF). Use them for research with a note, or skip them? | Release licence; "free and open source" rule | M1 |
 | Q13 | Turn on branch protection for `main` (require a PR + CODEOWNERS review)? CODEOWNERS alone only *requests* review. | Enforces the "never commit to main" rule | T02 |
-| Q14 | Llama 3.x (incl. Nanda-10B) and Gemma 3 are free open-weight models, but their licences aren't OSI open source. Are they allowed as M1 generators, or Apache/MIT models only (e.g. Qwen3-8B, Qwen2.5-7B)? | The paper needs ≥3 generators; Nanda is the Hindi-specialised one | M1 |
-| Q15 | Approve downloading `BAAI/bge-m3` (~2.3 GB) and `intfloat/multilingual-e5-large` (~2.2 GB) for the embedder choice? Both are under 10 GB but weren't approved in M0, so M0 used `multilingual-e5-small` as a stand-in. | Retrieval quality for every M1 result | T55 |
-| Q16 | Approve the M1 evaluation protocol in §3 (val only; threshold objective = macro-F1 over languages of response-level F1; span metrics reported, not optimised; refusals as their own class)? It must be fixed before any M1 number exists. | Validity of every M1 result | T43 |
