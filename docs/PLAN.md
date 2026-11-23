@@ -318,7 +318,7 @@ Proposed; becomes D-028 once Yousuf approves it:
 | T45 | Refusal handling: per-language refusal patterns, `Record` field or label, detector skips refusals, metrics report correct/incorrect refusals | K | T43 | 29 Nov |
 | T46 | `detection/typed/numeric.py`: digits in every in-scope script, Hindi number words (e.g. पाँच), lakh/crore and separators, compared on normalised values with offset maps | M | — | 1 Dec |
 | T47 | `detection/typed/temporal.py`: years, eras, Hindi month names and date formats; month/day names for the other languages from Unicode CLDR (source recorded in RESOURCES.md) | M | — | 3 Dec |
-| T48 | Fusion rule: a typed mismatch against the best-matching evidence window overrides NLI entailment, with the mismatch as a token-level span (D-029) | Y | T46, T47 | 5 Dec |
+| T48 | Fusion rule: a typed mismatch against the best-matching evidence window overrides NLI entailment, with the mismatch as a token-level span (D-030) | Y | T46, T47 | 5 Dec |
 | T49 | T29 carried over: ENTITY/LOCATION injection with IndicNER (needs HF access), transliteration-aware matching for the entity verifier | S | IndicNER access | 6 Dec |
 | T50 | Hindi val evaluation on GPU: ours (+C2) vs ours vs B1, with the T43 protocol | K | T44, T48 | 8 Dec |
 
@@ -337,7 +337,7 @@ Proposed; becomes D-028 once Yousuf approves it:
 |---|---|---|---|---|
 | T57 | B2: `KRLabsOrg/lettucedect-v2-mmbert-base` zero-shot (Apache-2.0); token spans mapped to original offsets | S | T44 | 29 Dec |
 | T58 | B3: LLM-as-judge with an open model on the T4 (no paid API); prompt fixed before evaluation | K | T44, Q14 | 2 Jan |
-| T59 | B4: LM-Polygraph token entropy and CCP from the generator's logits (needs the generator in HF transformers, not Ollama: D-030 on the Q4-vs-bf16 difference) | Y | T44 | 6 Jan |
+| T59 | B4: LM-Polygraph token entropy and CCP from the generator's logits (needs the generator in HF transformers, not Ollama: D-031 on the Q4-vs-bf16 difference) | Y | T44 | 6 Jan |
 | T60 | B5: translate-test with IndicTrans2 (indic→en, needs HF access), an English detector, and span projection back to the source offsets | S | IndicTrans2 access | 12 Jan |
 
 ### Phase D — data and aligner (13 – 31 Jan)

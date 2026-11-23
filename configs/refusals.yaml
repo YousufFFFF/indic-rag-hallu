@@ -1,0 +1,12 @@
+# Refusal sentences per language (DECISIONS D-029). A sentence is a refusal if it matches
+# any pattern (Python re.search on NFC text with whitespace collapsed). An answer whose
+# every claim lies inside refusal sentences is a refusal and gets no claim scores.
+# Languages without patterns never detect refusals: add them with the language's prompt
+# (PLAN T52) and test them on real generations first.
+hi:
+  # "the given/these/above passages ... (answer|information|mention|...) ... not ..."
+  # Requires a reference to the passages shown, so "अनुच्छेद 370 ..." (a constitutional
+  # article) does not match.
+  - '(दिए गए|दिये गये|इन|उपरोक्त|उपर्युक्त|प्रदत्त) अनुच्छेद\S*.*(उत्तर|जानकारी|उल्लेख|विवरण|चर्चा)\S*.*नहीं'
+  # "Therefore (this question's) answer is not ..."
+  - '^इसलिए\s.*उत्तर\s+(नहीं|देना संभव नहीं)'

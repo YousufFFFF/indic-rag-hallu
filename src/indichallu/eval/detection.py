@@ -79,6 +79,12 @@ def response_level_metrics(records: Sequence[Record]) -> dict[str, float | int |
     unlabelled = [r.id for r in records if r.labels is None]
     if unlabelled:
         raise ValueError(f"{len(unlabelled)} records have no gold labels, e.g. {unlabelled[:3]}")
+    refusals = [r.id for r in records if r.refusal or r.labels.response is ResponseLabel.REFUSAL]
+    if refusals:  # D-029: never silently scored as "faithful"
+        raise ValueError(
+            f"{len(refusals)} refusals among the records (e.g. {refusals[:3]}); filter with "
+            "eval.refusals.answered() and report them with refusal_metrics()"
+        )
     y_true = [r.labels.response is ResponseLabel.HALLUCINATED for r in records]
     preds = [response_prediction(r) for r in records]
     return binary_metrics(y_true, [p for p, _ in preds], [s for _, s in preds])

@@ -11,6 +11,7 @@ import re
 from collections.abc import Sequence
 
 from indichallu.data.schema import Record
+from indichallu.eval.refusals import answer_available
 
 
 def _cell(text: str) -> str:
@@ -51,6 +52,9 @@ def spotcheck_markdown(records: Sequence[Record], title: str = "T36 spot-check")
             f"Gold passage shown to the generator: {f'yes, [{gold}]' if gold else 'no'}",
             "",
         ]
+        if r.refusal:
+            right = "correct" if not answer_available(r) else "incorrect: the answer was available"
+            out += [f"Detector: **REFUSAL** ({right}); no claims scored.", ""]
         if r.claims:
             rank = {p.passage_id: p.rank for p in r.retrieved}
             out += ["| claim | detector | evidence | entail |", "|---|---|---|---:|"]

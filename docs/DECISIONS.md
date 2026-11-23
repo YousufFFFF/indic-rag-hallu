@@ -389,7 +389,18 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - **Development on val only.** Test stays untouched until the final M3 run; M1 scripts load the protocol and `check_split` refuses test.
   - **Threshold objective: macro-F1 over languages of response-level F1** (`macro_response_f1` in `detection/tune.py`); ties go to pooled response F1, then span F1, then the higher entailment threshold. Same grid as D-024.
   - **Span metrics** (character F1, token IoU, exact match, per type) are reported for every system but never optimised. **AUROC** is reported next to every F1.
-  - **Predicted spans:** a typed verifier's mismatch gives a token-level span; otherwise the span is the whole claim (T48, D-029).
+  - **Predicted spans:** a typed verifier's mismatch gives a token-level span; otherwise the span is the whole claim (T48, D-030).
   - **Every table:** per language and pooled, macro and worst-language, plus the flag-everything reference.
   - **Refusals are their own class** (`refusals: separate`): a refusal is correct if the gold passage was not shown, incorrect otherwise; refusals are excluded from claim-level metrics and reported separately (implemented in T45).
 - **Consequences:** The M0 pilot keeps its own protocol (`configs/eval/m0.yaml`, span F1, test allowed) so `results/m0/pilot.json` stays reproducible; `run_pilot_eval.py` records the protocol it followed. Changing the M1 protocol after M1 results exist needs a new decision entry that says what was seen first.
+
+## D-029 · Refusals are detected and scored as their own class (2026-11-24)
+
+- **Context:** In the T36 spot-check, 5 of 10 Qwen3-4B answers were refusals ("दिए गए अनुच्छेदों में इस प्रश्न का उत्तर नहीं है।" and variants), and the detector scored each as a claim the passages entail (~1.0). D-028 makes refusals their own class.
+- **Decision:**
+  - **Detection** (`detection/refusal.py`, `configs/refusals.yaml`): per-language patterns match refusal *sentences* of the original answer. Hindi needs an explicit reference to the passages shown (दिए गए / इन / उपरोक्त … अनुच्छेद…) plus a negated answer/information/mention, or a "therefore no answer" sentence; "अनुच्छेद" alone also means a constitution's article and is not enough. Languages without patterns never detect refusals (patterns are added with each language's prompt, T52).
+  - **Detector** (`refusals: separate`, from the protocol): refusal sentences are not claims. An answer made only of them is a refusal (`Record.refusal = True`, no claims, no NLI calls); in a partly refusing answer they are dropped and the rest is scored (`refusal = False`). The M0 mode (`claims`) is unchanged (`refusal = None`).
+  - **Correct refusal** = the answer was not available to the generator: the gold passage was not shown, **or** the question has no answer in it (`Record.answerable = False`, from IndicQA). This refines D-028's wording, which named only the first case. `answerable = None` (unknown) counts as available.
+  - **Metrics** (`eval/refusals.py`): refusal rate, precision (refusals that were right) and recall (unavailable answers that were refused). `response_level_metrics` raises if a refusal is passed in; callers filter with `answered()`. Gold labels gain `refusal` (no spans).
+- **Evidence for the Hindi patterns:** all 5 refusals in the T36 run detected and its 5 answers not; 0 of the 176 M0 pilot test answers and 0 of the 6,294 sentences of the Hindi IndicQA corpus match.
+- **Consequences:** `run_pipeline.py` takes `--protocol` (default `m1`) and reports refusals; the spot-check sheet says REFUSAL (correct / incorrect). The demo still uses the M0 mode until it is updated.

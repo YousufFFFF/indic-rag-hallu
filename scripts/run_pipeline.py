@@ -24,6 +24,7 @@ from indichallu.annotate.spotcheck import spotcheck_markdown  # noqa: E402
 from indichallu.data.schema import write_jsonl  # noqa: E402
 from indichallu.detection.aggregate import Thresholds  # noqa: E402
 from indichallu.detection.detector import Detector, load_detection_config, load_nli  # noqa: E402
+from indichallu.eval.protocol import load_protocol  # noqa: E402
 from indichallu.retrieval.embed import REPO_ROOT  # noqa: E402
 from indichallu.runs import start_run  # noqa: E402
 
@@ -50,10 +51,19 @@ def pilot_thresholds(detection: str, det_cfg: dict, path: Path | None = None) ->
 def main(argv: list[str] | None = None) -> int:
     p = ga.build_parser(__doc__.splitlines()[0])
     p.add_argument("--detection", default="m0", help="configs/detection/<name>.yaml")
-    p.set_defaults(name="pipeline")
+    p.add_argument(
+        "--protocol", default="m1", help="configs/eval/<name>.yaml (split guard, refusal mode)"
+    )
+    # val by default: the m1 protocol keeps test untouched until M3 (D-028)
+    p.set_defaults(name="pipeline", split="val")
     args = p.parse_args(argv)
     ga.check_args(p, args)
     det_cfg = load_detection_config(args.detection)
+    protocol = load_protocol(args.protocol)
+    try:  # before any generation or run folder (Codex on #34)
+        protocol.check_split(args.split)
+    except PermissionError as e:
+        p.error(f"{e} (or pass --protocol m0 to reproduce M0 work)")
 
     with start_run(ga.run_config(args), name=args.name) as run:
         records = ga.generate(args, run)
@@ -67,16 +77,24 @@ def main(argv: list[str] | None = None) -> int:
         n = det_cfg["nli"]
         run.add_model("nli", n["model_id"], revision=n["revision"])
         run.meta["thresholds"] = {**asdict(th), "source": source}
+        run.meta["protocol"] = protocol.record()
         run._save()
-        detector = Detector.from_config(det_cfg, args.lang, nli=load_nli(det_cfg), thresholds=th)
+        detector = Detector.from_config(
+            det_cfg,
+            args.lang,
+            nli=load_nli(det_cfg),
+            thresholds=th,
+            refusals=protocol.refusals,  # m1: refusals are their own class (D-029)
+        )
         detected = [detector.detect(r) for r in records]
         write_jsonl(detected, run.path("detected.jsonl"))
         run.path("spotcheck.md").write_text(
             spotcheck_markdown(detected, f"T36 spot-check · run {run.id}"), "utf-8"
         )
         verdicts = [c.verdict.value for r in detected for c in r.claims]
+        refusals = sum(bool(r.refusal) for r in detected)
         print(
-            f"detected {len(detected)} answers, {len(verdicts)} claims "
+            f"detected {len(detected)} answers ({refusals} refusals), {len(verdicts)} claims "
             f"(thresholds from {source}); sheet: {run.path('spotcheck.md')}",
             flush=True,
         )
