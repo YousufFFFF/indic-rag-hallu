@@ -386,7 +386,7 @@ Question numbers stay fixed so references elsewhere in this file still work.
 | Q14 | M1 generators: OSI licences only, or open-weight models too? | **Open-weight allowed**: Qwen (Apache-2.0) plus Llama-3-Nanda-10B and/or Llama-3.1-8B / Gemma 3, with licences cited. Each 7–10B model is a >10 GB download, runs only on Kaggle/Colab, and is still approved one by one. |
 | Q15 | Download `BAAI/bge-m3` and `intfloat/multilingual-e5-large` for T55? | **Yes, both**, on Kaggle/Colab for the GPU runs; the laptop keeps `multilingual-e5-small` for tests. |
 | Q16 | Approve the M1 evaluation protocol (§3)? | **Approved as proposed**; becomes D-028 in T43, before any M1 number exists. |
-| Q6 (part) | Which languages do Mukta, Sneha and Srushti speak natively? | **Marathi** and **Hindi**. So Hindi and Marathi can each have native prompt review and two annotators (C1 gold set; Hindi agreement measurable within the team). Other in-scope languages get synthetic data and sentence-level claims, with prompts reviewed outside the team or marked unreviewed. Who speaks which is still to be named (T51). |
+| Q6 (part) | Which languages do Mukta, Sneha and Srushti speak natively? | **Marathi** and **Hindi**. So Hindi and Marathi can each have native prompt review and two annotators (C1 gold set; Hindi agreement measurable within the team). **Gujarati, Punjabi, Tamil and Telugu** can be reviewed by native-speaker friends of Yousuf (outside the team): prompt review (T52) and checking decomposition rules (T53). Bengali, Kannada and Malayalam have no reviewer yet: synthetic data and sentence-level claims, prompts marked unreviewed. Gold-set annotation (C1, M2) stays with the team (Hindi, Marathi). Who speaks which is still to be named (T51). |
 
 ### Still open
 
