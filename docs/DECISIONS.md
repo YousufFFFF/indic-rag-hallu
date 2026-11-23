@@ -380,3 +380,15 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
 - **Decision:** For the windows of a passage and for the token chunks of a long window, keep the probability row of the **most entailing** piece (first one on ties). SUPPORTED therefore uses the true maximum entailment over all evidence; CONTRADICTED now means the passage's best-matching window contradicts the claim. Aggregation across passages is unchanged.
 - **Disclosure:** The flaw was found by reading test-set outputs. The fix follows from the contract, not from test performance: no threshold, grid or parameter was changed, thresholds are still tuned on val only, and the first run's numbers stay in PROGRESS.md (2026-11-21) as the record of the bug.
 - **Consequences:** The pilot is re-run on the GPU notebook; only the re-run's numbers go into the README. Contradiction evidence from windows that do not best match the claim is no longer used; the typed verifiers (C2) are the planned way to catch number and date swaps that NLI entails anyway.
+
+## D-028 · M1 evaluation protocol (2026-11-24, before any M1 number exists)
+
+- **Context:** The M0 pilot tuned thresholds on character-level span F1 (D-024). With claim-length predictions against number-length gold spans that objective drove both detectors' thresholds to the bottom of the grid (PROGRESS 2026-11-21), and the T36 spot-check showed the consequence on real output: an entailment of 0.12 counted as SUPPORTED. The M0 test records were also inspected while diagnosing D-027. Approved by Yousuf (PLAN Q16) before any M1 evaluation.
+- **Decision** (`configs/eval/m1.yaml`, `src/indichallu/eval/protocol.py`):
+  - **Development on val only.** Test stays untouched until the final M3 run; M1 scripts load the protocol and `check_split` refuses test.
+  - **Threshold objective: macro-F1 over languages of response-level F1** (`macro_response_f1` in `detection/tune.py`); ties go to pooled response F1, then span F1, then the higher entailment threshold. Same grid as D-024.
+  - **Span metrics** (character F1, token IoU, exact match, per type) are reported for every system but never optimised. **AUROC** is reported next to every F1.
+  - **Predicted spans:** a typed verifier's mismatch gives a token-level span; otherwise the span is the whole claim (T48, D-029).
+  - **Every table:** per language and pooled, macro and worst-language, plus the flag-everything reference.
+  - **Refusals are their own class** (`refusals: separate`): a refusal is correct if the gold passage was not shown, incorrect otherwise; refusals are excluded from claim-level metrics and reported separately (implemented in T45).
+- **Consequences:** The M0 pilot keeps its own protocol (`configs/eval/m0.yaml`, span F1, test allowed) so `results/m0/pilot.json` stays reproducible; `run_pilot_eval.py` records the protocol it followed. Changing the M1 protocol after M1 results exist needs a new decision entry that says what was seen first.

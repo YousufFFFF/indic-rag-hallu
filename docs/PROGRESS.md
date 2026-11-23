@@ -10,8 +10,10 @@ Dated log of what was done, what broke, and what's next. Newest first.
 - #29 and #30 merged: T36 spot-check and T41 fresh-clone check recorded; README points the pilot to the GPU notebook; the demo uses an in-corpus example and states measured CPU timings.
 - **M1 plan written** (PLAN §3): Phase A Hindi depth (evaluation protocol, refusal handling, typed NUMERICAL/TEMPORAL verifiers, ENTITY/LOCATION), Phase B all in-scope languages, Phase C baselines B2–B5, Phase D translated RAGTruth, natural hallucinations and the Indic-tuned aligner. Target 31 Jan 2027.
 
+- **T43: M1 evaluation protocol (D-028).** `configs/eval/{m0,m1}.yaml` + `eval/protocol.py`: development split, threshold objective, whether test may be touched, refusal mode; `check_split` refuses test under m1. `tune_thresholds(objective=...)` gains `macro_response_f1` (mean over languages of response F1); the pilot keeps `span_f1` via the m0 protocol, which `run_pilot_eval.py` now records.
+
 **Next**
-- Q14–Q16 answered (open-weight generators allowed; both embedders approved; protocol approved). Next: T43 (D-028) and T44 (GPU runner notebook).
+- Q14–Q16 answered (open-weight generators allowed; both embedders approved; protocol approved). Next: T44 (GPU runner notebook), T45 (refusals).
 
 ## 2026-11-21
 
