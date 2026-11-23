@@ -62,3 +62,13 @@ def test_paths_outside_the_repo_or_missing_are_refused(repo, tmp_path):
 def test_an_empty_session_is_an_error_not_an_empty_zip(repo):
     with pytest.raises(RuntimeError, match="nothing to package"):
         pr.package(repo / "s.zip", datetime(2027, 1, 1, tzinfo=UTC), [], root=repo)
+
+
+def test_after_a_failed_command_missing_outputs_are_skipped_not_fatal(repo, capsys):
+    """Codex on #33: a crash must still produce a zip with the failed run's folder."""
+    since = datetime(2026, 11, 25, 10, 45, tzinfo=UTC)
+    names = pr.package(
+        repo / "s.zip", since, ["results/never_written"], root=repo, allow_missing=True
+    )
+    assert names == ["results/runs/crashed/meta.json", "results/runs/crashed/out.jsonl"]
+    assert "results/never_written: not found, skipped" in capsys.readouterr().out

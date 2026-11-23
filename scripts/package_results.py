@@ -7,6 +7,8 @@ Includes every run folder under ``results/runs/`` whose ``meta.json`` says it st
 after ``--since`` (so runs from earlier sessions are left out), plus any extra repo paths.
 Paths inside the zip are repo-relative, so unzipping at the repo root puts each file where
 it belongs. Runs that did not finish are included but reported, never hidden.
+``--allow-missing`` skips (and reports) extra paths that don't exist: the runner notebook
+passes it only after a command failed, so a crash still yields a zip of what was written.
 """
 
 from __future__ import annotations
@@ -31,7 +33,13 @@ def runs_since(runs_root: Path, since: datetime) -> list[tuple[Path, dict]]:
     return sorted(found, key=lambda pm: pm[1]["started_at"])
 
 
-def package(out: Path, since: datetime, extra: list[str], root: Path = ROOT) -> list[str]:
+def package(
+    out: Path,
+    since: datetime,
+    extra: list[str],
+    root: Path = ROOT,
+    allow_missing: bool = False,
+) -> list[str]:
     """Write the zip; return the repo-relative paths it contains."""
     if since.tzinfo is None:
         raise ValueError("--since needs a timezone (run start times are UTC)")
@@ -45,6 +53,9 @@ def package(out: Path, since: datetime, extra: list[str], root: Path = ROOT) -> 
         if not p.is_relative_to(root.resolve()):
             raise ValueError(f"{rel}: outside the repository")
         if not p.exists():
+            if allow_missing:
+                print(f"{rel}: not found, skipped")
+                continue
             raise FileNotFoundError(f"{rel}: not found")
         files += [p] if p.is_file() else [f for f in sorted(p.rglob("*")) if f.is_file()]
     if not files:
@@ -61,9 +72,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", type=Path, required=True, help="zip file to write")
     p.add_argument("--since", required=True, help="ISO time with timezone, e.g. ...+00:00")
     p.add_argument("--path", action="append", default=[], help="extra repo path (repeatable)")
+    p.add_argument("--allow-missing", action="store_true", help="skip --path that doesn't exist")
     args = p.parse_args(argv)
     try:
-        names = package(args.out, datetime.fromisoformat(args.since), args.path)
+        names = package(
+            args.out,
+            datetime.fromisoformat(args.since),
+            args.path,
+            allow_missing=args.allow_missing,
+        )
     except (ValueError, FileNotFoundError, RuntimeError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
