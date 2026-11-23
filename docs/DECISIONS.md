@@ -373,6 +373,7 @@ Short ADR-style records of every non-obvious choice. Newest last. Each entry: co
   - Results are comparable across devices up to floating-point rounding; thresholds are tuned on a 0.05 grid, so rounding cannot move them except at an exact tie. The device and GPU are recorded in each run's `meta.json` (`environment.gpus`, `environment.cuda`).
   - The notebook may run on a newer Python than the Docker image's 3.11 (`--ignore-requires-python`); the run records the Python and package versions it used.
   - M1 (aligner fine-tuning, baselines B2–B5) needs the GPU anyway; this is the first step.
+  - T44 generalises the notebook: `notebooks/gpu_runner.ipynb` runs any list of repo commands and returns one zip built by `scripts/package_results.py`; the M0 notebook stays as the pilot's exact recipe.
 
 ## D-027 · A passage's score is its most entailing window, not its most decisive one (2026-11-21)
 

@@ -11,9 +11,10 @@ Dated log of what was done, what broke, and what's next. Newest first.
 - **M1 plan written** (PLAN §3): Phase A Hindi depth (evaluation protocol, refusal handling, typed NUMERICAL/TEMPORAL verifiers, ENTITY/LOCATION), Phase B all in-scope languages, Phase C baselines B2–B5, Phase D translated RAGTruth, natural hallucinations and the Indic-tuned aligner. Target 31 Jan 2027.
 
 - **T43: M1 evaluation protocol (D-028).** `configs/eval/{m0,m1}.yaml` + `eval/protocol.py`: development split, threshold objective, whether test may be touched, refusal mode; `check_split` refuses test under m1. `tune_thresholds(objective=...)` gains `macro_response_f1` (mean over languages of response F1); the pilot keeps `span_f1` via the m0 protocol, which `run_pilot_eval.py` now records.
+- **T44: GPU runner notebook.** `notebooks/gpu_runner.ipynb` runs any list of repo commands on a free Kaggle/Colab GPU: fresh clone of a branch, pins read from `pyproject.toml` (platform CUDA torch kept), optional `HF_TOKEN` from the platform secrets (never printed), IndicQA for chosen languages, a clean-tree check, and one zip. `scripts/package_results.py` (tested) zips exactly the run folders started in this session plus chosen paths, and reports runs that did not complete.
 
 **Next**
-- Q14–Q16 answered (open-weight generators allowed; both embedders approved; protocol approved). Next: T44 (GPU runner notebook), T45 (refusals).
+- Q14–Q16 answered (open-weight generators allowed; both embedders approved; protocol approved). Next: T45 (refusal handling), T46–T47 (typed verifiers).
 
 ## 2026-11-21
 
