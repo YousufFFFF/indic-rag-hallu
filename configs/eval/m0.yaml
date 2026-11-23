@@ -1,0 +1,8 @@
+# M0 pilot protocol (DECISIONS D-024, D-025), kept so results/m0/pilot.json stays
+# reproducible. Superseded for new work by m1.yaml (D-028).
+name: m0
+decision: D-024/D-025
+dev_split: val
+allow_test: true                   # the pilot reported test numbers
+threshold_objective: span_f1       # character-level span F1 (degenerate here, see PROGRESS)
+refusals: claims                   # refusals were scored like any answer

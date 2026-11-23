@@ -1,0 +1,7 @@
+# M1 protocol (DECISIONS D-028), fixed 2026-11-24 before any M1 number existed.
+name: m1
+decision: D-028
+dev_split: val
+allow_test: false                  # test stays untouched until the final M3 run
+threshold_objective: macro_response_f1   # mean over languages of response-level F1
+refusals: separate                 # own class: correct iff the gold passage wasn't shown (T45)
