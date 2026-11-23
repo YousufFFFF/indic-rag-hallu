@@ -31,6 +31,7 @@ from indichallu.detection.detector import Detector, b1_claims, load_detection_co
 from indichallu.detection.tune import redecide, tune_thresholds
 from indichallu.eval.detection import response_level_metrics
 from indichallu.eval.fairness import by_language
+from indichallu.eval.protocol import load_protocol
 from indichallu.eval.retrieval import Query, retrieval_metrics
 from indichallu.eval.spans import span_metrics_by_type
 from indichallu.retrieval.embed import REPO_ROOT, Embedder, load_embedder_config
@@ -49,11 +50,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--context-passages", type=int, default=3)
     p.add_argument("--seed", type=int, default=13)
     p.add_argument("--detection", default="m0")
+    p.add_argument("--protocol", default="m0", help="configs/eval/<name>.yaml")
     p.add_argument("--require-clean", action="store_true", help="refuse a dirty git tree")
     args = p.parse_args(argv)
     config = {"seed": args.seed, **{k: v for k, v in vars(args).items() if k != "seed"}}
 
+    protocol = load_protocol(args.protocol)
+    protocol.check_split(Split.TEST)  # the pilot evaluates test: only allowed under m0
     with start_run(config, name="m0-pilot", require_clean=args.require_clean) as run:
+        run.meta["protocol"] = protocol.record()
         dataset = load_pinned_dataset()
         ds = load_indicqa(verified_local_path(dataset, args.lang), args.lang)
         split = split_dataset(ds)
@@ -102,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
             scored = [det.detect(r) for r in pilot]
             val = [r for r in scored if r.split is Split.VAL]
             test = [r for r in scored if r.split is Split.TEST]
-            th, grid = tune_thresholds(val)
+            th, grid = tune_thresholds(val, objective=protocol.threshold_objective)
             decided = [redecide(r, th) for r in test]
             write_jsonl(decided, run.path(f"{name}.test.jsonl"))
             results[name] = {

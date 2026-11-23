@@ -220,6 +220,36 @@ def test_tuning_finds_thresholds_that_separate_the_classes():
     assert all(redecide(r, th).claims for r in val)
 
 
+def _as_lang(rec, lang):
+    from indichallu.data.schema import Record
+
+    data = rec.model_dump()
+    return Record.model_validate({**data, "lang": lang, "id": f"{lang}-{data['id'][3:]}"})
+
+
+def test_macro_response_objective_averages_over_languages():
+    """D-028: M1 tunes on the mean over languages of response F1, not on span F1."""
+    from indichallu.eval.detection import response_level_metrics
+    from indichallu.eval.fairness import by_language
+
+    hi = [_labelled("val", i, i % 2 == 0) for i in range(4)]
+    mr = [_as_lang(_labelled("val", 10 + i, i % 2 == 0), "mr") for i in range(4)]
+    grid = dict(entail_grid=(0.3, 0.5, 0.9), contradict_grid=(0.5,))
+    th, table = tune_thresholds(hi + mr, objective="macro_response_f1", **grid)
+    for row in table:  # every grid point carries the macro score it was ranked by
+        decided = [redecide(r, Thresholds(row["entail"], row["contradict"])) for r in hi + mr]
+        macro = by_language(decided, response_level_metrics)["macro"]["f1"]
+        assert row["macro_response_f1"] == macro
+    best = max(r["macro_response_f1"] or 0 for r in table)
+    chosen = next(r for r in table if (r["entail"], r["contradict"]) == (th.entail, th.contradict))
+    assert chosen["macro_response_f1"] == best
+
+
+def test_unknown_objective_is_rejected():
+    with pytest.raises(ValueError, match="unknown objective"):
+        tune_thresholds([_labelled("val", 1, True)], objective="accuracy")
+
+
 @pytest.mark.slow
 def test_worked_example_with_the_real_nli_model():
     """Slide 17 with the real M0 aligner (mDeBERTa, pinned). If the real model disagrees
