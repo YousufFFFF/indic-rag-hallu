@@ -1,6 +1,6 @@
 # PLAN — Hallucination Detection in RAG for Low-Resource Indic Languages
 
-*Last updated: 2026-11-21 · Status: M0 implemented and evaluated (pilot); open items are marked in "M0 status".*
+*Last updated: 2026-11-24 · Status: M0 complete (pilot; HF Space optional); M1 planned in §3 (Q14–Q16 answered).*
 
 **Team:** Mohammed Yousuf Ansari (lead) · Mukta Dhage · Sneha Shinde · Srushti Kondhalkar
 **Guide:** Prof. [GUIDE NAME — open question Q7]
@@ -207,7 +207,7 @@ Paths are relative to `src/indichallu/` unless they start with `configs/`, `scri
 
 **Goal:** one command runs Hindi IndicQA → retrieval → generation → decompose → NLI → aggregate → metrics, the slide-17 test passes, B1 vs ours is measured on a small synthetic Hindi set, and a local Gradio demo works. README results are labelled **"pilot — synthetic Hindi data only"**.
 
-**M0 design choices** (each gets a `DECISIONS.md` entry when made; open questions in §4 can change them):
+**M0 design choices** (each gets a `DECISIONS.md` entry when made; open questions in §5 can change them):
 - Corpus = unique IndicQA Hindi contexts. Questions = IndicQA Hindi questions with a gold passage. Unanswerable items are kept, flagged, and excluded from retrieval metrics.
 - Split by passage, 60/20/20, seeded.
 - Embedders: `BAAI/bge-m3` (primary) vs `intfloat/multilingual-e5-large`. Index: FAISS exact inner product (the corpus is small).
@@ -286,13 +286,85 @@ Each task is half a day or less. "Dep" = must be done first. Dates are target fi
 
 ---
 
-## 3. Resources
+## 3. M1 plan — typed verifiers, more languages, baselines (target **Sun 31 Jan 2027**)
+
+**Goal (CLAUDE.md §7):** synthetic labelled data for every in-scope language, baselines B2–B5, the Indic-tuned aligner (C3) and the typed verifiers (C2), each evaluated **per language and pooled on val**. M1 reports no test numbers; test is used once, in M3.
+
+**What M0 taught us** (PROGRESS 2026-11-21) and how M1 answers it:
+
+| M0 finding | M1 response |
+|---|---|
+| Off-the-shelf NLI entails most injected number/date swaps (low recall) | Typed NUMERICAL/TEMPORAL verifiers first (C2, Phase A) |
+| The span-F1 threshold objective is degenerate for claim-level predictions vs number-level gold spans | Evaluation protocol fixed **before** any M1 evaluation (T43, D-028) |
+| Refusals ("the passages don't contain the answer") are scored as entailed claims | Refusal handling in schema, detector and metrics (T45) |
+| The pilot's faithful answers are copied passage sentences (easy) | Natural generations and translated RAGTruth join the synthetic data (Phase B, D) |
+| CPU is too slow for NLI and generation at scale | All heavy runs on the free Kaggle/Colab T4 through notebooks (D-026); the laptop is for development and tests |
+| The demo takes ~10 min per check on CPU | HF Space on free hardware or a GPU notebook demo (T42 carried over) |
+
+### Evaluation protocol for M1 (decide in T43, before any M1 number exists)
+
+Proposed; becomes D-028 once Yousuf approves it:
+- **Development data = val only.** The M0 test records were inspected while diagnosing D-027, so test stays untouched until the final M3 run, and the paper says so.
+- **Threshold objective = macro-F1 over languages of response-level F1 on val.** Span metrics (character F1, token IoU, exact match) are still reported for every system but are never optimised. AUROC is reported next to every F1 because it needs no threshold.
+- **Predicted spans:** a typed verifier's mismatch gives a token-level span (the number or date); otherwise the span is the whole claim. Gold spans stay as annotated.
+- **Every table:** per language and pooled, macro and worst-language F1 (CLAUDE.md §3 row 16), plus the flag-everything reference.
+- **Refusals are their own class:** a refusal is *correct* if the gold passage was not shown and *incorrect* otherwise. Refusals are excluded from claim-level metrics and reported separately.
+
+### Phase A — Hindi depth (25 Nov – 8 Dec)
+| # | Task | Owner | Dep | Target |
+|---|---|---|---|---|
+| T43 | Write D-028 (protocol above) after Yousuf approves it; `eval/` reads the objective from config | Y | — | 26 Nov |
+| T44 | Generic GPU runner notebook: any `scripts/*.py` command on Kaggle/Colab, results zipped back (generalises `m0_pilot_gpu.ipynb`) | Y | — | 27 Nov |
+| T45 | Refusal handling: per-language refusal patterns, `Record` field or label, detector skips refusals, metrics report correct/incorrect refusals | K | T43 | 29 Nov |
+| T46 | `detection/typed/numeric.py`: digits in every in-scope script, Hindi number words (e.g. पाँच), lakh/crore and separators, compared on normalised values with offset maps | M | — | 1 Dec |
+| T47 | `detection/typed/temporal.py`: years, eras, Hindi month names and date formats; month/day names for the other languages from Unicode CLDR (source recorded in RESOURCES.md) | M | — | 3 Dec |
+| T48 | Fusion rule: a typed mismatch against the best-matching evidence window overrides NLI entailment, with the mismatch as a token-level span (D-029) | Y | T46, T47 | 5 Dec |
+| T49 | T29 carried over: ENTITY/LOCATION injection with IndicNER (needs HF access), transliteration-aware matching for the entity verifier | S | IndicNER access | 6 Dec |
+| T50 | Hindi val evaluation on GPU: ours (+C2) vs ours vs B1, with the T43 protocol | K | T44, T48 | 8 Dec |
+
+### Phase B — all in-scope languages (9 – 22 Dec)
+| # | Task | Owner | Dep | Target |
+|---|---|---|---|---|
+| T51 | Final language set from corpus availability and who can review prompts (Q6); `configs/languages.yaml` updated | Y | Q6 | 9 Dec |
+| T52 | Per-language prompt templates (`generation/prompts/<lang>.txt`), each reviewed by a native speaker | K + reviewers | T51 | 12 Dec |
+| T53 | Per-language decomposition rules (conjunctions, sentence splitting); fall back to sentence claims where no speaker can check them | M | T51 | 15 Dec |
+| T54 | Typed injection for every language (digits, months, entities where IndicNER covers the language) with per-language pilot sets | M | T49, T53 | 17 Dec |
+| T55 | Embedder choice on val: `bge-m3` vs `multilingual-e5-large` (each ~2.2 GB; needs approval, Q15), all languages, on GPU | S | T44, Q15 | 19 Dec |
+| T56 | Natural generations on GPU for val + test questions of every language: the M0 generator first, then the M1 generators once Q14 is answered (the paper needs at least three); cached JSONL | K | T44, T52, Q14 | 22 Dec |
+
+### Phase C — baselines (23 Dec – 12 Jan)
+| # | Task | Owner | Dep | Target |
+|---|---|---|---|---|
+| T57 | B2: `KRLabsOrg/lettucedect-v2-mmbert-base` zero-shot (Apache-2.0); token spans mapped to original offsets | S | T44 | 29 Dec |
+| T58 | B3: LLM-as-judge with an open model on the T4 (no paid API); prompt fixed before evaluation | K | T44, Q14 | 2 Jan |
+| T59 | B4: LM-Polygraph token entropy and CCP from the generator's logits (needs the generator in HF transformers, not Ollama: D-030 on the Q4-vs-bf16 difference) | Y | T44 | 6 Jan |
+| T60 | B5: translate-test with IndicTrans2 (indic→en, needs HF access), an English detector, and span projection back to the source offsets | S | IndicTrans2 access | 12 Jan |
+
+### Phase D — data and aligner (13 – 31 Jan)
+| # | Task | Owner | Dep | Target |
+|---|---|---|---|---|
+| T61 | Translated RAGTruth (`wandb/RAGTruth-processed`, upstream licence checked first): IndicTrans2 en→indic with span markers; drop items whose markers break | M | IndicTrans2 access | 18 Jan |
+| T62 | Natural hallucinations under degraded retrieval (C4 conditions, small scale), auto-labelled by the B3 judge; Yousuf checks a sample to measure the judge's accuracy | K | T56, T58 | 22 Jan |
+| T63 | C3: fine-tune the aligner on IndicXNLI (`Divyanshu/indicxnli`, CC0-1.0) + synthetic claim–evidence pairs from the **train** split; candidates `google/muril-base-cased`, `ai4bharat/IndicBERTv2-MLM-only`, `jhu-clsp/mmBERT-base`, `FacebookAI/xlm-roberta-large` | Y | T54, T61 | 28 Jan |
+| T64 | M1 val results per language and pooled for ours, ours+C2, ours+C3, B1–B5; README block and outcome panel regenerated, labelled "val, synthetic" | K | all above | 31 Jan |
+| T42 | HF Space (carried over from M0) on free hardware, or a GPU notebook demo if CPU Spaces are too slow | Y | — | 31 Jan |
+
+**M1 is done when:** every in-scope language has a synthetic labelled set; B1–B5, ours, ours+C2 and ours+C3 have val results per language and pooled under D-028; refusals are handled; and every number is generated from `results/`.
+
+**Downloads and access M1 needs** (all in RESOURCES.md; nothing above 10 GB without approval):
+- HF access, auto-approved after accepting terms: `ai4bharat/IndicNER` (T49), `ai4bharat/indictrans2-*` (T60, T61).
+- Under 10 GB, not yet approved: `BAAI/bge-m3` and `intfloat/multilingual-e5-large` (T55).
+- Over 10 GB, each needs explicit approval and only runs on Kaggle/Colab: any 7–10B generator (Q14) and `FacebookAI/xlm-roberta-large` if the full repo is fetched (safetensors only is smaller).
+
+---
+
+## 4. Resources
 
 See [RESOURCES.md](RESOURCES.md): exact HF IDs, revisions, licences, gating, sizes and whether each fits 16 GB in 4-bit, all checked 2026-11-19.
 
 ---
 
-## 4. Open questions
+## 5. Open questions
 
 Question numbers stay fixed so references elsewhere in this file still work.
 
@@ -307,16 +379,23 @@ Question numbers stay fixed so references elsewhere in this file still work.
 | Q6 (part) | Who reviews the Hindi prompts? | **Yousuf**, for T22 and T36. |
 | Q9 | OK to show the team's names publicly? | **Yes.** |
 
+### Answered (2026-11-24)
+
+| # | Question | Answer |
+|---|---|---|
+| Q14 | M1 generators: OSI licences only, or open-weight models too? | **Open-weight allowed**: Qwen (Apache-2.0) plus Llama-3-Nanda-10B and/or Llama-3.1-8B / Gemma 3, with licences cited. Each 7–10B model is a >10 GB download, runs only on Kaggle/Colab, and is still approved one by one. |
+| Q15 | Download `BAAI/bge-m3` and `intfloat/multilingual-e5-large` for T55? | **Yes, both**, on Kaggle/Colab for the GPU runs; the laptop keeps `multilingual-e5-small` for tests. |
+| Q16 | Approve the M1 evaluation protocol (§3)? | **Approved as proposed**; becomes D-028 in T43, before any M1 number exists. |
+| Q6 (part) | Which languages do Mukta, Sneha and Srushti speak natively? | **Marathi** and **Hindi**. So Hindi and Marathi can each have native prompt review and two annotators (C1 gold set; Hindi agreement measurable within the team). **Gujarati, Punjabi, Tamil and Telugu** can be reviewed by native-speaker friends of Yousuf (outside the team): prompt review (T52) and checking decomposition rules (T53). Bengali, Kannada and Malayalam have no reviewer yet: synthetic data and sentence-level claims, prompts marked unreviewed. Gold-set annotation (C1, M2) stays with the team (Hindi, Marathi). Who speaks which is still to be named (T51). |
+
 ### Still open
 
 | # | Question | Why it matters | Blocks |
 |---|---|---|---|
 | Q4 | CLAUDE.md §4.4 lists `MBZUAI/Llama-3-Nanda-10B-Chat`. On HF it redirects to `IFM/Llama-3-Nanda-10B-Chat`. OK to update CLAUDE.md to the `IFM/` ID? | Configs must pin the real ID | M1 |
-| Q6 | Which languages do Mukta, Sneha and Srushti speak natively? The gold set needs **two annotators per language** for the ≥20% double-annotated subset. If Yousuf is the only Hindi speaker, Hindi agreement can't be measured within the team. | Gold-set languages (C1), κ/α (D63) | M2 |
 | Q7 | Guide's name, and faculty requirements and date for the Stage II review | Deck placeholders; M3 timing | — |
 | Q8 | Target paper venue and deadline | Sets M4 | M4 |
 | Q10 | Confirm or change the proposed owner per track (Y / M / S / K) in §2 | Task assignment | Week 1 |
 | Q11 | M0 corpus: IndicQA contexts only (small, so retrieval is easy), or also add Hindi Wikipedia distractors from `ai4bharat/Indic-Rag-Suite` (download size per language not yet measured)? | Realism of retrieval metrics | T11 |
 | Q12 | Licences: `ai4bharat/MSMARCO-XI` (defers to MS MARCO's non-commercial terms), `ai4bharat/IndicXNLI-Translated` and `ai4bharat/IndicBERTv2-MLM-only-XNLI` (none declared), `google/muril-large-cased` (none on HF). Use them for research with a note, or skip them? | Release licence; "free and open source" rule | M1 |
 | Q13 | Turn on branch protection for `main` (require a PR + CODEOWNERS review)? CODEOWNERS alone only *requests* review. | Enforces the "never commit to main" rule | T02 |
-| Q14 | Llama 3.x (incl. Nanda-10B) and Gemma 3 are free open-weight models, but their licences aren't OSI open source. Are they allowed as M1 generators, or Apache/MIT models only (e.g. Qwen3-8B, Qwen2.5-7B)? | The paper needs ≥3 generators; Nanda is the Hindi-specialised one | M1 |

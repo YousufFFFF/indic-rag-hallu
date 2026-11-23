@@ -4,6 +4,15 @@ Dated log of what was done, what broke, and what's next. Newest first.
 
 ---
 
+## 2026-11-24
+
+**Done**
+- #29 and #30 merged: T36 spot-check and T41 fresh-clone check recorded; README points the pilot to the GPU notebook; the demo uses an in-corpus example and states measured CPU timings.
+- **M1 plan written** (PLAN §3): Phase A Hindi depth (evaluation protocol, refusal handling, typed NUMERICAL/TEMPORAL verifiers, ENTITY/LOCATION), Phase B all in-scope languages, Phase C baselines B2–B5, Phase D translated RAGTruth, natural hallucinations and the Indic-tuned aligner. Target 31 Jan 2027.
+
+**Next**
+- Q14–Q16 answered (open-weight generators allowed; both embedders approved; protocol approved). Next: T43 (D-028) and T44 (GPU runner notebook).
+
 ## 2026-11-21
 
 **Done**

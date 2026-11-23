@@ -7,7 +7,7 @@ Every model and dataset this project plans to use. **Checked against the Hugging
 - **Download:** size of the weight files we would actually fetch (or the total repo size where marked *repo*). Repo totals include duplicate formats (ONNX, fp16 copies, etc.) and overstate what we need.
 - **16 GB / 4-bit:** for generators, an **estimate** of weight memory in 4-bit NF4 (≈ 0.55–0.65 GB per billion parameters) plus headroom for a 4k-token KV cache. Encoders run in fp16/fp32 and don't need quantisation. All VRAM figures are to be **measured** in M0 task T21 and replaced here.
 - **M0?** = used in the Hindi vertical slice.
-- ⚠ = needs your attention (see Open questions in [PLAN.md](PLAN.md#4-open-questions)).
+- ⚠ = needs your attention (see Open questions in [PLAN.md](PLAN.md#5-open-questions)).
 
 ---
 
