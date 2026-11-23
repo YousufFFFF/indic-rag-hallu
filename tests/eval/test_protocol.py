@@ -44,6 +44,8 @@ def test_record_is_what_a_run_stores():
         ({"threshold_objective": "accuracy"}, "objective"),
         ({"refusals": "ignore"}, "refusals"),
         ({"dev_split": Split.TEST}, "test"),
+        ({"allow_test": "false"}, "boolean"),  # a quoted string would be truthy
+        ({"allow_test": 0}, "boolean"),
     ],
 )
 def test_invalid_protocols_are_rejected(change, match):
@@ -57,6 +59,17 @@ def test_invalid_protocols_are_rejected(change, match):
     )
     with pytest.raises(ValueError, match=match):
         Protocol(**{**base, **change})
+
+
+def test_a_quoted_allow_test_in_yaml_cannot_unlock_test(tmp_path):
+    """Codex on #32: `allow_test: "false"` must be rejected, not read as true."""
+    (tmp_path / "q.yaml").write_text(
+        'name: q\ndecision: D-0\ndev_split: val\nallow_test: "false"\n'
+        "threshold_objective: span_f1\nrefusals: claims\n",
+        "utf-8",
+    )
+    with pytest.raises(ValueError, match="boolean"):
+        load_protocol("q", root=tmp_path)
 
 
 def test_config_name_must_match_its_file(tmp_path):

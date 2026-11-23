@@ -39,6 +39,11 @@ class Protocol:
             raise ValueError(f"protocol {self.name!r}: refusals must be one of {REFUSAL_MODES}")
         if self.dev_split is Split.TEST:
             raise ValueError(f"protocol {self.name!r}: thresholds can't be developed on test")
+        if not isinstance(self.allow_test, bool):  # "false" as a string is truthy (Codex, #32)
+            raise ValueError(
+                f"protocol {self.name!r}: allow_test must be a YAML boolean (true/false), "
+                f"got {self.allow_test!r}"
+            )
 
     def check_split(self, split: Split | str) -> None:
         """Raise if this protocol forbids evaluating ``split``."""
@@ -68,7 +73,7 @@ def load_protocol(name: str, root: Path = EVAL_CONFIGS) -> Protocol:
         name=raw["name"],
         decision=raw["decision"],
         dev_split=Split(raw["dev_split"]),
-        allow_test=bool(raw["allow_test"]),
+        allow_test=raw["allow_test"],  # validated as a real boolean, never coerced
         threshold_objective=raw["threshold_objective"],
         refusals=raw["refusals"],
     )
