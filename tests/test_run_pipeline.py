@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from indichallu.data.schema import RetrievedPassage, Split, Verdict, read_jsonl
 from indichallu.generation.backends import MockBackend
@@ -74,7 +75,7 @@ def test_pipeline_writes_detected_records_and_a_spotcheck_sheet(tmp_path, monkey
         "load_pinned_dataset": lambda: SimpleNamespace(repo="r", revision="v"),
         "verified_local_path": lambda d, lang: None,
         "load_indicqa": lambda path, lang: SimpleNamespace(passages=passages, questions=[q]),
-        "split_dataset": lambda ds: SimpleNamespace(of_passage=lambda pid: Split.TEST),
+        "split_dataset": lambda ds: SimpleNamespace(of_passage=lambda pid: Split.VAL),
         "load_embedder_config": lambda name: SimpleNamespace(model_id="m", revision="r"),
         "Embedder": lambda cfg, cache_dir: None,
         "Retriever": FakeRetriever,
@@ -172,3 +173,15 @@ def test_spotcheck_sheet_shows_generated_markdown_verbatim():
     assert not any(line.startswith(("- [x]", "## नकली")) for line in outside)
     assert "&lt;/details&gt; \\| पाइप" in "\n".join(lines)  # passage text is inert
     assert "प्रश्न &lt;b&gt;?" in "\n".join(lines)
+
+
+def test_the_m1_protocol_refuses_test_before_generating_anything(tmp_path, monkeypatch, capsys):
+    """Codex on #34: --split test under the default m1 protocol must stop before any run."""
+    rp = load("run_pipeline")
+    started = []
+    monkeypatch.setattr(rp, "start_run", lambda *a, **k: started.append(1))
+    monkeypatch.setattr(rp.ga, "generate", lambda *a, **k: started.append("generated"))
+    with pytest.raises(SystemExit) as e:
+        rp.main(["--embedder", "x", "--split", "test"])
+    assert e.value.code == 2 and started == []
+    assert "D-028" in capsys.readouterr().err

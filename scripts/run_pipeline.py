@@ -51,12 +51,19 @@ def pilot_thresholds(detection: str, det_cfg: dict, path: Path | None = None) ->
 def main(argv: list[str] | None = None) -> int:
     p = ga.build_parser(__doc__.splitlines()[0])
     p.add_argument("--detection", default="m0", help="configs/detection/<name>.yaml")
-    p.add_argument("--protocol", default="m1", help="configs/eval/<name>.yaml (refusal mode)")
-    p.set_defaults(name="pipeline")
+    p.add_argument(
+        "--protocol", default="m1", help="configs/eval/<name>.yaml (split guard, refusal mode)"
+    )
+    # val by default: the m1 protocol keeps test untouched until M3 (D-028)
+    p.set_defaults(name="pipeline", split="val")
     args = p.parse_args(argv)
     ga.check_args(p, args)
     det_cfg = load_detection_config(args.detection)
     protocol = load_protocol(args.protocol)
+    try:  # before any generation or run folder (Codex on #34)
+        protocol.check_split(args.split)
+    except PermissionError as e:
+        p.error(f"{e} (or pass --protocol m0 to reproduce M0 work)")
 
     with start_run(ga.run_config(args), name=args.name) as run:
         records = ga.generate(args, run)
