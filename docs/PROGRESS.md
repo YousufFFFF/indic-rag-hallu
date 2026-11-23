@@ -13,8 +13,10 @@ Dated log of what was done, what broke, and what's next. Newest first.
 - **T43: M1 evaluation protocol (D-028).** `configs/eval/{m0,m1}.yaml` + `eval/protocol.py`: development split, threshold objective, whether test may be touched, refusal mode; `check_split` refuses test under m1. `tune_thresholds(objective=...)` gains `macro_response_f1` (mean over languages of response F1); the pilot keeps `span_f1` via the m0 protocol, which `run_pilot_eval.py` now records.
 - **T44: GPU runner notebook.** `notebooks/gpu_runner.ipynb` runs any list of repo commands on a free Kaggle/Colab GPU: fresh clone of a branch, pins read from `pyproject.toml` (platform CUDA torch kept), optional `HF_TOKEN` from the platform secrets (never printed), IndicQA for chosen languages, a clean-tree check, and one zip. `scripts/package_results.py` (tested) zips exactly the run folders started in this session plus chosen paths, and reports runs that did not complete.
 
+- **T45: refusal handling (D-029).** `detection/refusal.py` + `configs/refusals.yaml` (Hindi): refusal sentences are not claims; refusal-only answers get `refusal=True` and no NLI calls. `Record.answerable` and `Record.refusal`, gold label `refusal`; `eval/refusals.py` (rate, precision, recall); detection metrics refuse unfiltered refusals. Hindi patterns: 5/5 spot-check refusals detected, 0 false positives on 176 pilot answers and 6,294 corpus sentences.
+
 **Next**
-- Q14–Q16 answered (open-weight generators allowed; both embedders approved; protocol approved). Next: T45 (refusal handling), T46–T47 (typed verifiers).
+- Q14–Q16 answered (open-weight generators allowed; both embedders approved; protocol approved). Next: T46–T47 (typed NUMERICAL/TEMPORAL verifiers).
 
 ## 2026-11-21
 
